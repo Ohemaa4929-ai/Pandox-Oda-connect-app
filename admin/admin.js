@@ -67,6 +67,11 @@ function sidebar() {
 
 function topbar(title) {
   const t = el('div', 'topbar');
+  const menu = el('button', 'mobile-menu', '☰ Menu');
+  menu.type = 'button';
+  menu.setAttribute('aria-label', 'Open dashboard navigation');
+  menu.onclick = () => document.querySelector('.sidebar')?.classList.toggle('open');
+  t.appendChild(menu);
   t.appendChild(el('h1', '', esc(title)));
   const a = el('div', 'admin');
   a.appendChild(el('span', '', esc(state.admin?.full_name || state.admin?.email || '')));
@@ -163,7 +168,7 @@ async function dashboardView() {
       ['Completed bookings', stats.completed_bookings, 'bookings'], ['Today\'s revenue', fmtGHS(stats.todays_revenue), 'transactions'],
       ['Monthly revenue', fmtGHS(stats.monthly_revenue), 'transactions'], ['Subscription revenue', fmtGHS(stats.subscription_revenue), 'subscriptions'],
       ['Platform commission', fmtGHS(stats.platform_commission), 'commissions'], ['Refunds', stats.refunds, 'refunds'],
-      ['Pending approvals', stats.pending_approvals, 'verifications'], ['Open disputes', stats.open_disputes, 'disputes']
+      ['Pending approvals', stats.pending_approvals, 'verifications'], ['Manual payments', stats.pending_manual_payments || 0, 'subscriptions'], ['Open disputes', stats.open_disputes, 'disputes']
     ];
     const grid = el('div', 'stats-grid');
     cards.forEach(([label, value, view]) => {
@@ -508,6 +513,32 @@ async function subscriptionsView() {
   });
   panel.appendChild(grid);
   v.appendChild(panel);
+
+  const manualPanel = el('div', 'panel');
+  manualPanel.appendChild(el('h3', '', 'Manual payment reports'));
+  const manualBody = el('tbody', '');
+  const manualLoad = async () => {
+    const { submissions } = await api('/manual-payment-submissions');
+    manualBody.innerHTML = '';
+    if (!submissions.length) { manualBody.innerHTML = '<tr><td colspan="8" class="muted">No manual payment reports yet.</td></tr>'; return; }
+    submissions.forEach(m => {
+      const tr = el('tr', '');
+      tr.innerHTML = `<td>${esc(m.full_name)}</td><td>${esc(m.email)}</td><td>${esc(m.plan_name)}</td><td>${fmtGHS(m.amount)}</td><td>${badge(m.status)}</td><td>${fmtDT(m.reported_at || m.created_at)}</td>`;
+      const act = el('td', '');
+      if (m.status === 'PAID_REPORTED') {
+        const approve = el('button', 'btn sm', 'Verify & activate');
+        approve.onclick = async () => { if (confirm(`Verify payment from ${m.full_name}?`)) { await api(`/manual-payment-submissions/${m.id}/status`, { method: 'POST', body: JSON.stringify({ status: 'APPROVED' }) }); toast('Payment verified and subscription activated'); manualLoad(); } };
+        const reject = el('button', 'btn sm danger', 'Reject');
+        reject.onclick = async () => { if (confirm(`Reject payment report from ${m.full_name}?`)) { await api(`/manual-payment-submissions/${m.id}/status`, { method: 'POST', body: JSON.stringify({ status: 'REJECTED' }) }); toast('Payment report rejected'); manualLoad(); } };
+        act.appendChild(approve); act.appendChild(reject);
+      }
+      tr.appendChild(act); manualBody.appendChild(tr);
+    });
+  };
+  const manualTable = el('table', 'table');
+  manualTable.innerHTML = '<thead><tr><th>User</th><th>Email</th><th>Plan</th><th>Amount</th><th>Status</th><th>Reported</th><th>Actions</th></tr></thead>';
+  manualTable.appendChild(manualBody); manualPanel.appendChild(manualTable); v.appendChild(manualPanel);
+  manualLoad();
   const tbody = el('tbody', '');
   const load = async () => {
     const { subscriptions } = await api('/subscriptions');
