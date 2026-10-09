@@ -288,6 +288,21 @@ CREATE TABLE IF NOT EXISTS notifications (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS manual_payment_submissions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  subscription_id INTEGER NOT NULL REFERENCES subscriptions(id),
+  audience TEXT NOT NULL,
+  plan_name TEXT NOT NULL,
+  amount REAL NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'PENDING',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  reported_at TEXT,
+  reviewed_at TEXT,
+  reviewed_by INTEGER REFERENCES users(id),
+  review_note TEXT
+);
+
 CREATE TABLE IF NOT EXISTS notification_campaigns (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   title TEXT NOT NULL,
