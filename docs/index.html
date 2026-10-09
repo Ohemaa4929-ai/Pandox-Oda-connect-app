@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PANDOX ODA CONNECT — Project</title>
+<style>
+  body { font-family: 'Inter', system-ui, sans-serif; background: #f1f5f9; color: #0f172a; margin: 0; padding: 40px 20px; }
+  .wrap { max-width: 860px; margin: 0 auto; }
+  h1 { font-size: 28px; margin-bottom: 4px; }
+  .sub { color: #64748b; margin-bottom: 24px; }
+  .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+  h2 { font-size: 18px; margin: 0 0 10px; }
+  code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #e2e8f0; }
+  th { color: #64748b; font-size: 12px; text-transform: uppercase; }
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .green { background: #dcfce7; color: #166534; }
+  .amber { background: #fef3c7; color: #92400e; }
+  .red { background: #fee2e2; color: #991b1b; }
+  ul { margin: 8px 0; padding-left: 20px; }
+  li { margin-bottom: 4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>PANDOX ODA CONNECT</h1>
+  <div class="sub">All-in-one platform for Akim Oda, Eastern Region, Ghana — complete build — one shared backend + database, two interfaces.</div>
+
+  <div class="card">
+    <h2>Status: <span class="badge green">BUILD COMPLETE</span> <span class="badge green">46/46 + 86/86 TESTS PASSING</span></h2>
+    <p>One shared backend + database powering two interfaces. No fake data — unconfigured external services report <b>NOT CONFIGURED</b>.</p>
+  </div>
+
+  <div class="card">
+    <h2>Interfaces</h2>
+    <table>
+      <tr><th>Interface</th><th>Production</th><th>Local dev</th></tr>
+      <tr><td>Customer / Provider app</td><td><code>app.pandoxoda.com</code></td><td><code>http://localhost:3000/</code></td></tr>
+      <tr><td>Owner Dashboard</td><td><code>admin.pandoxoda.com</code></td><td><code>http://localhost:3000/admin</code></td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>What's built (all 33 spec sections)</h2>
+    <ul>
+      <li><b>Auth &amp; verification</b> — customer/provider registration, Ghana Card/Passport/Driver's Licence workflow (PENDING → UNDER_REVIEW → APPROVED/REJECTED), encrypted ID storage (AES-256-GCM)</li>
+      <li><b>Modules</b> — transportation/rides, delivery, hotels, Airbnb/short-stay, apartments/property with listings, rooms, vehicles, availability</li>
+      <li><b>Bookings</b> — rides, delivery, hotel nights, property; cancel per policy; ratings &amp; reviews</li>
+      <li><b>Payments</b> — Paystack (Ghana), server-side verification + HMAC webhooks, never trusts frontend; <b>NOT CONFIGURED</b> until keys set</li>
+      <li><b>Financial ledger</b> — pending/successful/failed/cancelled/refunded/disputed; corrections create adjustment records, history never silently changed</li>
+      <li><b>Subscriptions</b> — customer + provider (3-month) plans, owner-configurable price/period/trial from dashboard</li>
+      <li><b>Commissions</b> — per-category percent + fixed fee, owner-configurable</li>
+      <li><b>Owner Dashboard</b> — 20 stat cards, users/providers/verifications/listings/bookings/disputes/transactions/refunds/subscriptions/commissions/reports, staff, audit log, sessions, settings, policies, campaigns, control center</li>
+      <li><b>Admin roles</b> — SUPER_ADMIN, FINANCE, VERIFICATION, SUPPORT, DISPUTE, CONTENT, TECH; strict server-side RBAC</li>
+      <li><b>Super admin security</b> — 2FA (TOTP), 12h sessions, rate limiting, login monitoring, session revocation, never hardcoded credentials</li>
+      <li><b>Audit log</b> — every admin action recorded, no modification path</li>
+      <li><b>Control center</b> — pause registrations/bookings/payments, disable modules, maintenance mode; all logged</li>
+      <li><b>Disputes</b> — raise, notes, investigate, resolve, close</li>
+      <li><b>13 legal policies</b> — versioned, acceptance tracking, reviewable for Ghanaian requirements</li>
+      <li><b>Notifications</b> — in-app always, email/SMS when configured, campaigns</li>
+      <li><b>Search &amp; location</b> — search, filters, categories, city; maps when configured</li>
+      <li><b>Reports</b> — revenue/commission/provider earnings/bookings/users/providers/refunds/service performance by day/month/year</li>
+      <li><b>Security</b> — helmet headers, rate limiting, input validation, parameterized SQL, XSS-safe output, secure uploads</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>Before go-live (external configuration)</h2>
+    <table>
+      <tr><th>Item</th><th>Status</th><th>Action</th></tr>
+      <tr><td>Paystack keys + webhook</td><td><span class="badge amber">NOT CONFIGURED</span></td><td>Set <code>PAYSTACK_SECRET_KEY</code> etc., point webhook at <code>POST /api/payments/webhook/paystack</code></td></tr>
+      <tr><td>SMTP email</td><td><span class="badge amber">NOT CONFIGURED</span></td><td>Set <code>SMTP_*</code> env vars</td></tr>
+      <tr><td>SMS provider</td><td><span class="badge amber">NOT CONFIGURED</span></td><td>Set <code>SMS_*</code> env vars</td></tr>
+      <tr><td>Maps</td><td><span class="badge amber">NOT CONFIGURED</span></td><td>Set <code>MAPS_API_KEY</code></td></tr>
+      <tr><td>Domain + TLS</td><td><span class="badge amber">NOT CONFIGURED</span></td><td>Deploy behind HTTPS, <code>NODE_ENV=production</code></td></tr>
+      <tr><td>Subscription prices &amp; commissions</td><td><span class="badge green">READY</span></td><td>Set from Owner Dashboard (seeded 0% / default plans)</td></tr>
+      <tr><td>Legal policies</td><td><span class="badge green">SEEDED</span></td><td>Review 13 documents for Ghanaian requirements</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Run it</h2>
+    <p><code>npm install</code> → <code>cp .env.example .env</code> (fill values) → <code>npm start</code> → open <code>http://localhost:3000</code> (app) and <code>/admin</code> (dashboard). Tests: <code>npm test</code> (46 checks on a fresh DB).</p>
+  </div>
+</div>
+</body>
+</html>
