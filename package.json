@@ -1,0 +1,37 @@
+{
+  "name": "pandox-oda-connect",
+  "version": "1.0.0",
+  "description": "PANDOX ODA CONNECT — all-in-one marketplace platform for Akim Oda, Ghana (transport, delivery, hotels, short-stay, property). One backend + one database, two interfaces.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node tests/smoke.test.js",
+    "create-admin": "node src/scripts/create-admin.js"
+  },
+  "keywords": [
+    "pandox",
+    "oda",
+    "ghana",
+    "marketplace",
+    "transport",
+    "delivery",
+    "hotels",
+    "property"
+  ],
+  "author": "PANDOX",
+  "license": "ISC",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "body-parser": "^1.20.3",
+    "cookie-parser": "^1.4.7",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.7.1",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.3",
+    "otplib": "^13.5.0",
+    "paystack": "^2.0.1"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  }
+}
