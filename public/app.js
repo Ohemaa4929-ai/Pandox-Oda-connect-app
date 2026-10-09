@@ -1,7 +1,7 @@
 'use strict';
 /* PANDOX ODA CONNECT — customer/provider app (vanilla SPA) */
 const API = '/api';
-const state = { user: null, token: localStorage.getItem('pandox_token'), view: 'home', provider: null, catalog: [], categories: [] };
+const state = { user: null, token: localStorage.getItem('pandox_token'), view: 'home', params: {}, provider: null, catalog: [], categories: [] };
 
 const $ = (sel) => document.querySelector(sel);
 const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
