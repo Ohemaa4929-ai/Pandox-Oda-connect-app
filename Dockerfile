@@ -14,8 +14,7 @@ COPY . .
 # Runtime directories
 RUN mkdir -p /app/data /app/uploads
 
-# SQLite database lives here — mount a volume for persistence
-VOLUME ["/app/data", "/app/uploads"]
+# SQLite database lives here — mount a Railway Volume at /app/data for persistence
 
 EXPOSE 3000
 
