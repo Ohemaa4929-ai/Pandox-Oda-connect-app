@@ -61,7 +61,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Static: owner dashboard
 app.use('/admin', express.static(path.join(__dirname, 'admin')));
 // Uploaded files (served only when they exist)
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads', express.static(config.uploadDir));
 
 // SPA fallbacks
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
@@ -106,7 +106,7 @@ if (!config.sessionSecret || config.sessionSecret.length < 32) console.warn('[co
 if (!config.encryptionKey || config.encryptionKey.length !== 64) console.warn('[config] WARNING: ENCRYPTION_KEY is not set (needed for encrypted ID storage).');
 if (!config.paystackSecretKey) console.warn('[config] Payments: NOT CONFIGURED (set PAYSTACK_SECRET_KEY). Payment endpoints will report NOT CONFIGURED.');
 
-fs.mkdirSync(path.join(__dirname, 'uploads'), { recursive: true });
+fs.mkdirSync(config.uploadDir, { recursive: true });
 
 app.listen(config.port, () => {
   console.log(`PANDOX ODA CONNECT running on http://localhost:${config.port}`);
