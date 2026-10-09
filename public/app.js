@@ -1,7 +1,7 @@
 'use strict';
 /* PANDOX ODA CONNECT — customer/provider app (vanilla SPA) */
 const API = '/api';
-const state = { user: null, token: localStorage.getItem('pandox_token'), view: 'home', params: {}, provider: null, catalog: [], categories: [] };
+const state = { user: null, token: localStorage.getItem('pandox_token'), view: 'home', params: {}, prev: null, provider: null, catalog: [], categories: [] };
 
 const $ = (sel) => document.querySelector(sel);
 const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
@@ -75,11 +75,22 @@ function nav() {
 /* ---------------- VIEWS ---------------- */
 const CAT_VIEWS = { rides: 'ride', delivery: 'delivery', hotels: 'hotel', short_stay: 'short_stay', apartments: 'apartment' };
 function go(view, params = {}) {
+  state.prev = { view: state.view, params: { ...state.params } };
   state.view = view; state.params = params;
   if (CAT_VIEWS[view]) { state.params = { category: CAT_VIEWS[view] }; loadCatalog(); return; }
   if (view === 'account' || view === 'provider' || view === 'bookings' || view === 'disputes') loadUser();
   else if (view === 'home' && (params.q || params.category)) loadCatalog();
   else render();
+}
+
+function backBtn(label = 'Back') {
+  const b = el('button', 'btn outline sm', `← ${label}`);
+  b.onclick = () => {
+    if (state.prev) go(state.prev.view, state.prev.params);
+    else go('home');
+  };
+  b.style.marginBottom = '16px';
+  return b;
 }
 
 async function loadUser() {
@@ -151,6 +162,7 @@ function listingsGrid(listings) {
 
 function categoryView(category) {
   const v = el('div');
+  v.appendChild(backBtn());
   v.appendChild(el('h1', '', esc(CATEGORY_META[category]?.label || category)));
   const search = el('div', 'search', ''); search.style.margin = '16px 0';
   const input = el('input', '', ''); input.placeholder = `Search ${category}…`;
@@ -165,6 +177,7 @@ function categoryView(category) {
 
 async function resultsView() {
   const v = el('div', '');
+  v.appendChild(backBtn());
   v.appendChild(el('h2', '', 'Search results'));
   const list = el('div', 'list');
   if (!state.catalog.length) list.appendChild(el('p', 'muted', 'No results found.'));
@@ -182,6 +195,7 @@ async function resultsView() {
 
 async function listingView() {
   const v = el('div');
+  v.appendChild(backBtn());
   try {
     const { listing, rooms } = await api(`/catalog/listings/${state.params.id}`);
     v.appendChild(el('h1', '', esc(listing.title)));
@@ -282,6 +296,7 @@ function field(label, name, type, placeholder, options) {
 
 function accountView() {
   const v = el('div', 'container');
+  v.appendChild(backBtn());
   v.appendChild(el('h1', '', 'My account'));
   const tabs = el('div', 'tabs');
   [['profile', 'Profile'], ['bookings', 'Bookings'], ['subscription', 'Subscription'], ['disputes', 'Disputes'], ['notifications', 'Notifications'], ['policies', 'Policies']].forEach(([k, l]) => {
@@ -469,6 +484,7 @@ async function policiesTab() {
 function bookView() {
   const l = state.params.listing;
   const v = el('div', 'container');
+  v.appendChild(backBtn());
   const card = el('div', 'card form-card');
   card.appendChild(el('h2', '', `Book: ${esc(l.title)}`));
   const f = el('form', '');
@@ -505,6 +521,7 @@ function bookView() {
 function rateView() {
   const b = state.params.booking;
   const v = el('div', 'container');
+  v.appendChild(backBtn());
   const card = el('div', 'card form-card');
   card.appendChild(el('h2', '', `Rate booking ${esc(b.booking_ref)}`));
   const f = el('form', '');
@@ -526,6 +543,7 @@ function rateView() {
 
 function newDisputeView() {
   const v = el('div', 'container');
+  v.appendChild(backBtn());
   const card = el('div', 'card form-card');
   card.appendChild(el('h2', '', 'Open a dispute'));
   const f = el('form', '');
@@ -548,6 +566,7 @@ function newDisputeView() {
 /* ---------------- PROVIDER PANEL ---------------- */
 function providerView() {
   const v = el('div', 'container');
+  v.appendChild(backBtn());
   v.appendChild(el('h1', '', 'Provider panel'));
   if (!state.provider) {
     v.appendChild(el('div', 'alert info', 'You have no provider account. Register as a provider to offer services.'));
@@ -600,6 +619,7 @@ async function providerListings() {
 
 function newListingView() {
   const v = el('div', 'container');
+  v.appendChild(backBtn());
   const card = el('div', 'card form-card');
   card.appendChild(el('h2', '', 'New listing'));
   const f = el('form', '');
