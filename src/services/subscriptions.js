@@ -40,6 +40,40 @@ function currentSubscription(userId) {
     WHERE s.user_id = ? ORDER BY s.id DESC LIMIT 1`).get(userId);
 }
 
+const PAYMENT_INSTRUCTIONS = {
+  momo: [
+    { number: '0543900094', name: 'Boateng Kwadwo Eric' },
+    { number: '0538848601', name: 'Pandox decor and furniture' }
+  ],
+  bank: { bank: 'Ghana Commercial Bank', account: '3051010015601', name: 'Eric Boateng' }
+};
+
+function manualPaymentInstructions() {
+  return PAYMENT_INSTRUCTIONS;
+}
+
+/** Create or reuse a pending manual-payment subscription. No access is activated until an owner verifies payment. */
+function createManualPayment(userId, audience) {
+  const plan = audience === 'provider' ? providerPlan() : customerPlan();
+  if (!plan.active) return { error: 'Subscriptions are not currently offered on the platform.' };
+  const existing = db.prepare(`SELECT m.*, s.status AS subscription_status FROM manual_payment_submissions m
+    JOIN subscriptions s ON s.id = m.subscription_id
+    WHERE m.user_id = ? AND m.audience = ? AND m.status IN ('PENDING', 'PAID_REPORTED')
+    ORDER BY m.id DESC LIMIT 1`).get(userId, audience);
+  if (existing) return { submission_id: existing.id, subscription_id: existing.subscription_id, reused: true, instructions: manualPaymentInstructions(), plan };
+
+  const now = new Date();
+  const starts = now.toISOString();
+  const expires = new Date(now.getTime() + plan.billing_period_days * 864e5).toISOString();
+  const info = db.prepare(`INSERT INTO subscriptions (user_id, plan_id, status, starts_at, expires_at, payment_status)
+    VALUES (?, (SELECT id FROM subscription_plans WHERE audience = ? LIMIT 1), 'PENDING_PAYMENT', ?, ?, 'PENDING')`)
+    .run(userId, audience, starts, expires);
+  const submission = db.prepare(`INSERT INTO manual_payment_submissions
+    (user_id, subscription_id, audience, plan_name, amount, status) VALUES (?, ?, ?, ?, ?, 'PENDING')`)
+    .run(userId, info.lastInsertRowid, audience, plan.name, plan.price);
+  return { submission_id: submission.lastInsertRowid, subscription_id: info.lastInsertRowid, instructions: manualPaymentInstructions(), plan };
+}
+
 /** Subscribe a user. Returns payment initialization when a price is set; otherwise activates directly (free plan). */
 async function subscribe(userId, audience, email) {
   const plan = audience === 'provider' ? providerPlan() : customerPlan();
@@ -98,4 +132,4 @@ function runExpiryChecks() {
   }
 }
 
-module.exports = { customerPlan, providerPlan, currentSubscription, subscribe, runExpiryChecks, getSetting };
+module.exports = { customerPlan, providerPlan, currentSubscription, subscribe, createManualPayment, manualPaymentInstructions, runExpiryChecks, getSetting };
