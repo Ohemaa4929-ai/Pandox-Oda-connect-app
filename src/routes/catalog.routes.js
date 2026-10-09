@@ -6,7 +6,7 @@ const router = express.Router();
 
 function listingWithPhotos(l) {
   const photos = db.prepare('SELECT file_path, is_cover FROM listing_photos WHERE listing_id = ? ORDER BY is_cover DESC').all(l.id);
-  const provider = db.prepare(`SELECT p.id, p.provider_type, p.business_name, u.full_name, u.phone FROM providers p JOIN users u ON u.id = p.user_id WHERE p.id = ?`).get(l.provider_id);
+  const provider = db.prepare(`SELECT p.id, p.user_id, p.provider_type, p.business_name, u.full_name, u.phone FROM providers p JOIN users u ON u.id = p.user_id WHERE p.id = ?`).get(l.provider_id);
   return { ...l, photos: photos.map(p => p.file_path), provider };
 }
 
