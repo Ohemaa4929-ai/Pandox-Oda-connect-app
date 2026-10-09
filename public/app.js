@@ -8,6 +8,7 @@ const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls)
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmtGHS = (n) => `GH₵ ${Number(n || 0).toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-GH', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+const fmtDT = (d) => d ? new Date(d).toLocaleString('en-GH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
 const toast = (msg) => { const t = el('div', 'toast', esc(msg)); document.body.appendChild(t); setTimeout(() => t.remove(), 3500); };
 
 async function api(path, opts = {}) {
@@ -56,6 +57,9 @@ function nav() {
       pd.href = '#'; pd.onclick = (e) => { e.preventDefault(); go('provider'); };
       menu.appendChild(pd);
     }
+    const msg = el('a', '', ' · Messages');
+    msg.href = '#'; msg.onclick = (e) => { e.preventDefault(); go('chat'); };
+    menu.appendChild(msg);
     const out = el('a', '', ' · Logout');
     out.href = '#'; out.onclick = async (e) => { e.preventDefault(); await api('/auth/logout', { method: 'POST' }).catch(() => {}); state.token = null; localStorage.removeItem('pandox_token'); state.user = null; state.provider = null; go('home'); };
     menu.appendChild(out);
@@ -214,6 +218,17 @@ async function listingView() {
       p.appendChild(el('h4', '', esc(listing.provider.business_name || 'Provider')));
       p.appendChild(el('p', 'muted', `${esc(listing.provider.provider_type)} · ${esc(listing.provider.phone || '')}`));
       v.appendChild(p);
+    }
+    if (state.user && listing.provider && listing.provider.id) {
+      const msg = el('button', 'btn outline', '💬 Message provider');
+      msg.style.marginRight = '8px';
+      msg.onclick = async () => {
+        try {
+          const { conversation } = await api('/chat/conversations', { method: 'POST', body: JSON.stringify({ user_id: listing.provider.user_id }) });
+          go('chat-thread', { id: conversation.id });
+        } catch (ex) { toast(ex.message); }
+      };
+      v.appendChild(msg);
     }
     if (state.user) {
       const book = el('button', 'btn', 'Book now');
@@ -735,6 +750,123 @@ async function providerVehicles() {
   return v;
 }
 
+/* ---------------- CHAT ---------------- */
+async function chatView() {
+  const v = el('div', 'container');
+  v.appendChild(backBtn());
+  v.appendChild(el('h1', '', 'Messages'));
+  if (!state.user) { v.appendChild(el('div', 'alert info', 'Login to see your messages.')); return v; }
+  const newBtn = el('button', 'btn', '+ New message');
+  newBtn.onclick = () => go('new-chat');
+  v.appendChild(newBtn);
+  const list = el('div', 'chat-list');
+  list.style.marginTop = '16px';
+  try {
+    const { conversations } = await api('/chat/conversations');
+    if (!conversations.length) {
+      list.appendChild(el('div', 'empty', '<div class="icon">💬</div>No conversations yet. Start a new message.'));
+    } else {
+      conversations.forEach(c => {
+        const row = el('div', 'chat-row');
+        row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border:1px solid #e5e7eb;border-radius:12px;margin-bottom:8px;cursor:pointer;background:#fff';
+        const left = el('div', '');
+        left.appendChild(el('div', '', `<strong>${esc(c.other_name || c.other_email)}</strong> <span class="muted">· ${esc(c.other_role)}</span>`));
+        left.appendChild(el('div', 'muted', esc(c.last_message || 'No messages yet')));
+        const right = el('div', '');
+        if (c.unread > 0) right.appendChild(el('span', 'badge red', String(c.unread)));
+        right.appendChild(el('div', 'muted', fmtDT(c.last_message_at)));
+        row.appendChild(left); row.appendChild(right);
+        row.onclick = () => go('chat-thread', { id: c.id });
+        list.appendChild(row);
+      });
+    }
+  } catch (e) { list.appendChild(el('div', 'alert error', esc(e.message))); }
+  v.appendChild(list);
+  return v;
+}
+
+async function chatThreadView() {
+  const v = el('div', 'container');
+  v.appendChild(backBtn('Messages'));
+  try {
+    const { conversation, messages } = await api(`/chat/conversations/${state.params.id}/messages`);
+    v.appendChild(el('h1', '', 'Chat'));
+    const box = el('div', 'chat-box');
+    box.style.cssText = 'border:1px solid #e5e7eb;border-radius:12px;padding:16px;min-height:300px;max-height:420px;overflow-y:auto;background:#fafafa;margin:16px 0';
+    messages.forEach(m => {
+      const mine = m.sender_id === state.user.id;
+      const row = el('div', '');
+      row.style.cssText = `display:flex;justify-content:${mine ? 'flex-end' : 'flex-start'};margin-bottom:10px`;
+      const bubble = el('div', '');
+      bubble.style.cssText = `max-width:75%;padding:10px 14px;border-radius:12px;background:${mine ? '#111' : '#fff'};color:${mine ? '#fff' : '#111'};border:${mine ? 'none' : '1px solid #e5e7eb'}`;
+      bubble.appendChild(el('div', '', esc(m.body)));
+      bubble.appendChild(el('div', 'muted', `${esc(m.sender_name)} · ${fmtDT(m.created_at)}`));
+      if (mine) bubble.querySelector('div:last-child').style.color = '#aaa';
+      row.appendChild(bubble);
+      box.appendChild(row);
+    });
+    v.appendChild(box);
+    const form = el('form', '');
+    form.style.cssText = 'display:flex;gap:8px';
+    const input = el('input', '', '');
+    input.placeholder = 'Type a message…';
+    input.style.flex = '1';
+    const send = el('button', 'btn', 'Send'); send.type = 'submit';
+    form.appendChild(input); form.appendChild(send);
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      const text = input.value.trim();
+      if (!text) return;
+      input.value = '';
+      try {
+        await api(`/chat/conversations/${state.params.id}/messages`, { method: 'POST', body: JSON.stringify({ body: text }) });
+        render();
+      } catch (ex) { toast(ex.message); }
+    };
+    v.appendChild(form);
+    api(`/chat/conversations/${state.params.id}/read`, { method: 'POST' }).catch(() => {});
+  } catch (e) { v.appendChild(el('div', 'alert error', esc(e.message))); }
+  return v;
+}
+
+async function newChatView() {
+  const v = el('div', 'container');
+  v.appendChild(backBtn('Messages'));
+  v.appendChild(el('h1', '', 'New message'));
+  const q = el('input', '', '');
+  q.placeholder = 'Search name, email or phone…';
+  q.style.cssText = 'width:100%;padding:12px;border:1px solid #e5e7eb;border-radius:10px;margin:16px 0';
+  v.appendChild(q);
+  const list = el('div', '');
+  const load = async () => {
+    list.innerHTML = '';
+    try {
+      const { users } = await api(`/chat/users?q=${encodeURIComponent(q.value)}`);
+      if (!users.length) { list.appendChild(el('div', 'empty', 'No users found you can message.')); return; }
+      users.forEach(u => {
+        const row = el('div', 'chat-row');
+        row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border:1px solid #e5e7eb;border-radius:12px;margin-bottom:8px;cursor:pointer;background:#fff';
+        const left = el('div', '');
+        left.appendChild(el('div', '', `<strong>${esc(u.full_name || u.email)}</strong> <span class="muted">· ${esc(u.role)}</span>`));
+        left.appendChild(el('div', 'muted', esc(u.email)));
+        const btn = el('button', 'btn sm', 'Message');
+        btn.onclick = async () => {
+          try {
+            const { conversation } = await api('/chat/conversations', { method: 'POST', body: JSON.stringify({ user_id: u.id }) });
+            go('chat-thread', { id: conversation.id });
+          } catch (ex) { toast(ex.message); }
+        };
+        row.appendChild(left); row.appendChild(btn);
+        list.appendChild(row);
+      });
+    } catch (e) { list.appendChild(el('div', 'alert error', esc(e.message))); }
+  };
+  q.oninput = load;
+  v.appendChild(list);
+  load();
+  return v;
+}
+
 /* ---------------- RENDER ---------------- */
 function render() {
   const app = $('#app');
@@ -754,6 +886,9 @@ function render() {
   else if (view === 'login' || view === 'register') { app.appendChild(authView(view)); return; }
   else if (view === 'account') main.appendChild(accountView());
   else if (view === 'provider') main.appendChild(providerView());
+  else if (view === 'chat') main.appendChild(chatView());
+  else if (view === 'chat-thread') main.appendChild(chatThreadView());
+  else if (view === 'new-chat') main.appendChild(newChatView());
   else if (view === 'book') main.appendChild(bookView());
   else if (view === 'rate') main.appendChild(rateView());
   else if (view === 'new-dispute') main.appendChild(newDisputeView());
