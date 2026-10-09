@@ -28,6 +28,7 @@
     "express-rate-limit": "^8.7.1",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
+    "multer": "^2.4.0",
     "otplib": "^13.5.0",
     "paystack": "^2.0.1"
   },
