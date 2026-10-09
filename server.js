@@ -46,6 +46,8 @@ app.use('/api/bookings', require('./src/routes/booking.routes'));
 app.use('/api/provider', require('./src/routes/provider.routes'));
 app.use('/api/payments', require('./src/routes/payment.routes'));
 app.use('/api/disputes', require('./src/routes/dispute.routes'));
+app.use('/api/chat', require('./src/routes/chat.routes'));
+app.use('/api/admin/chat', require('./src/routes/chat.routes'));
 app.use('/api/user', require('./src/routes/user.routes'));
 app.use('/api/admin', require('./src/routes/admin.routes'));
 
