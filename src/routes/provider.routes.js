@@ -1,10 +1,38 @@
 'use strict';
 /** Provider operations: profile, listings, vehicles, availability, earnings, accept jobs. */
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
+const multer = require('multer');
+const config = require('../config');
 const { db } = require('../db');
 const { requireAuth } = require('../auth');
 const { notify } = require('../services/notifications');
 const router = express.Router();
+
+const MEDIA_MIME_EXTENSIONS = {
+  'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp', 'image/gif': '.gif',
+  'video/mp4': '.mp4', 'video/webm': '.webm', 'video/quicktime': '.mov', 'video/x-msvideo': '.avi'
+};
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      const dir = path.join(config.uploadDir, 'providers', String(req.provider.id), String(req.listing.id));
+      fs.mkdirSync(dir, { recursive: true });
+      cb(null, dir);
+    },
+    filename: (req, file, cb) => {
+      const ext = MEDIA_MIME_EXTENSIONS[file.mimetype] || '';
+      cb(null, `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${ext}`);
+    }
+  }),
+  limits: { files: 8, fileSize: 50 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (!MEDIA_MIME_EXTENSIONS[file.mimetype]) return cb(new Error('Only JPG, PNG, WEBP, GIF, MP4, WEBM, MOV or AVI files are allowed.'));
+    cb(null, true);
+  }
+});
 
 function requireProvider(req, res, next) {
   const p = db.prepare('SELECT * FROM providers WHERE user_id = ?').get(req.user.id);
@@ -102,6 +130,53 @@ router.post('/listings/:id/availability', requireAuth, requireProvider, (req, re
   if (!date) return res.status(400).json({ error: 'date is required' });
   db.prepare('INSERT INTO availability (listing_id, date, available) VALUES (?, ?, ?) ON CONFLICT(listing_id, date) DO UPDATE SET available = excluded.available')
     .run(l.id, date, available ? 1 : 0);
+  res.json({ ok: true });
+});
+
+// Upload listing media. Approval and an active provider subscription are required.
+router.post('/listings/:id/media', requireAuth, requireProvider, (req, res, next) => {
+  req.listing = db.prepare('SELECT * FROM listings WHERE id = ? AND provider_id = ?').get(req.params.id, req.provider.id);
+  if (!req.listing) return res.status(404).json({ error: 'Listing not found' });
+  upload.array('media', 8)(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.code === 'LIMIT_FILE_SIZE' ? 'Each media file must be 50 MB or smaller.' : err.message });
+    next();
+  });
+}, (req, res) => {
+  if (!req.files || !req.files.length) return res.status(400).json({ error: 'Select at least one image or video.' });
+  const media = [];
+  try {
+    for (const file of req.files) {
+      const mediaType = file.mimetype.startsWith('video/') ? 'video' : 'image';
+      const relative = path.relative(config.uploadDir, file.path).split(path.sep).join('/');
+      const filePath = `/uploads/${relative}`;
+      const info = db.prepare(`INSERT INTO listing_media
+        (listing_id, file_path, media_type, mime_type, file_size, original_name, is_cover)
+        VALUES (?, ?, ?, ?, ?, ?, ?)` ).run(req.listing.id, filePath, mediaType, file.mimetype, file.size, file.originalname, media.length === 0 ? 1 : 0);
+      media.push(db.prepare('SELECT * FROM listing_media WHERE id = ?').get(info.lastInsertRowid));
+    }
+    res.status(201).json({ media });
+  } catch (e) {
+    for (const file of req.files) fs.rmSync(file.path, { force: true });
+    console.error('[provider media upload]', e);
+    res.status(500).json({ error: 'Media could not be saved.' });
+  }
+});
+
+// List media for an owned listing.
+router.get('/listings/:id/media', requireAuth, requireProvider, (req, res) => {
+  const listing = db.prepare('SELECT id FROM listings WHERE id = ? AND provider_id = ?').get(req.params.id, req.provider.id);
+  if (!listing) return res.status(404).json({ error: 'Listing not found' });
+  res.json({ media: db.prepare('SELECT * FROM listing_media WHERE listing_id = ? ORDER BY is_cover DESC, created_at ASC').all(listing.id) });
+});
+
+// Delete media owned by the provider.
+router.delete('/listings/:listingId/media/:mediaId', requireAuth, requireProvider, (req, res) => {
+  const media = db.prepare(`SELECT m.* FROM listing_media m JOIN listings l ON l.id = m.listing_id
+    WHERE m.id = ? AND m.listing_id = ? AND l.provider_id = ?`).get(req.params.mediaId, req.params.listingId, req.provider.id);
+  if (!media) return res.status(404).json({ error: 'Media not found' });
+  const diskPath = path.join(config.uploadDir, media.file_path.replace(/^\/uploads\//, ''));
+  db.prepare('DELETE FROM listing_media WHERE id = ?').run(media.id);
+  fs.rmSync(diskPath, { force: true });
   res.json({ ok: true });
 });
 
