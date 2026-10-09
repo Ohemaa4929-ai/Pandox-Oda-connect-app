@@ -8,11 +8,18 @@ const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls)
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmtGHS = (n) => `GH₵ ${Number(n || 0).toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-GH', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
-const fmtDT = (d) => d ? new Date(d).toLocaleString('en-GH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
 const toast = (msg) => { const t = el('div', 'toast', esc(msg)); document.body.appendChild(t); setTimeout(() => t.remove(), 3500); };
 
+function mountAsync(parent, loader) {
+  const loading = el('div', 'muted', 'Loading…');
+  parent.appendChild(loading);
+  Promise.resolve().then(loader).then(node => { if (node) loading.replaceWith(node); })
+    .catch(err => loading.replaceWith(el('div', 'alert error', esc(err.message || 'Unable to load this section.'))));
+}
+
 async function api(path, opts = {}) {
-  const headers = { 'Content-Type': 'application/json' };
+  const headers = { ...(opts.headers || {}) };
+  if (!(opts.body instanceof FormData)) headers['Content-Type'] = 'application/json';
   if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
   const res = await fetch(API + path, { ...opts, headers });
   const data = await res.json().catch(() => ({}));
@@ -213,6 +220,24 @@ async function listingView() {
       rooms.forEach(r => price.appendChild(el('p', '', `${esc(r.name)} — ${fmtGHS(r.price_per_night)}/night`)));
     }
     v.appendChild(price);
+    if (listing.media && listing.media.length) {
+      const mediaCard = el('div', 'card', '');
+      mediaCard.appendChild(el('h3', '', 'Photos and video'));
+      const mediaGrid = el('div', 'media-grid');
+      listing.media.forEach(m => {
+        if (m.media_type === 'video') {
+          const video = document.createElement('video');
+          video.controls = true; video.preload = 'metadata'; video.src = m.file_path; video.className = 'listing-media';
+          mediaGrid.appendChild(video);
+        } else {
+          const img = document.createElement('img');
+          img.src = m.file_path; img.alt = m.original_name || listing.title; img.loading = 'lazy'; img.className = 'listing-media';
+          mediaGrid.appendChild(img);
+        }
+      });
+      mediaCard.appendChild(mediaGrid);
+      v.appendChild(mediaCard);
+    }
     if (listing.provider) {
       const p = el('div', 'card', '');
       p.appendChild(el('h4', '', esc(listing.provider.business_name || 'Provider')));
@@ -322,11 +347,11 @@ function accountView() {
   v.appendChild(tabs);
   const tab = state.params.tab || 'profile';
   if (tab === 'profile') v.appendChild(profileTab());
-  else if (tab === 'bookings') v.appendChild(bookingsTab());
-  else if (tab === 'subscription') v.appendChild(subscriptionTab());
-  else if (tab === 'disputes') v.appendChild(disputesTab());
-  else if (tab === 'notifications') v.appendChild(notificationsTab());
-  else if (tab === 'policies') v.appendChild(policiesTab());
+  else if (tab === 'bookings') mountAsync(v, bookingsTab);
+  else if (tab === 'subscription') mountAsync(v, subscriptionTab);
+  else if (tab === 'disputes') mountAsync(v, disputesTab);
+  else if (tab === 'notifications') mountAsync(v, notificationsTab);
+  else if (tab === 'policies') mountAsync(v, policiesTab);
   return v;
 }
 
@@ -424,7 +449,7 @@ async function subscriptionTab() {
         try {
           const r = await api('/payments/subscriptions/subscribe', { method: 'POST', body: JSON.stringify({ audience: p.audience }) });
           if (r.payment && r.payment.authorization_url) { window.location.href = r.payment.authorization_url; }
-          else if (r.subscription) { toast('Subscription active'); subscriptionTab(); }
+          else if (r.activated) { toast('Subscription active'); loadUser(); }
         } catch (ex) { toast(ex.message); }
       };
       c.appendChild(b);
@@ -595,6 +620,13 @@ function providerView() {
     v.appendChild(el('div', 'alert info', `Your provider account is ${state.provider.status}. An administrator will review your application.`));
     return v;
   }
+  const subscriptionSlot = el('div');
+  v.appendChild(subscriptionSlot);
+  mountAsync(subscriptionSlot, providerSubscriptionCard);
+  if (state.provider.subscription_status !== 'ACTIVE') {
+    v.appendChild(el('div', 'alert info', 'Subscribe to the provider package to create listings, manage bookings, and upload service or property media.'));
+    return v;
+  }
   const tabs = el('div', 'tabs');
   [['listings', 'Listings'], ['bookings', 'Bookings'], ['earnings', 'Earnings'], ['vehicles', 'Vehicles']].forEach(([k, l]) => {
     const b = el('button', state.params.ptab === k ? 'active' : '', esc(l));
@@ -603,10 +635,39 @@ function providerView() {
   });
   v.appendChild(tabs);
   const tab = state.params.ptab || 'listings';
-  if (tab === 'listings') v.appendChild(providerListings());
-  else if (tab === 'bookings') v.appendChild(providerBookings());
-  else if (tab === 'earnings') v.appendChild(providerEarnings());
-  else if (tab === 'vehicles') v.appendChild(providerVehicles());
+  if (tab === 'listings') mountAsync(v, providerListings);
+  else if (tab === 'bookings') mountAsync(v, providerBookings);
+  else if (tab === 'earnings') mountAsync(v, providerEarnings);
+  else if (tab === 'vehicles') mountAsync(v, providerVehicles);
+  return v;
+}
+
+async function providerSubscriptionCard() {
+  const v = el('div', 'card');
+  try {
+    const { subscription, provider_plan } = await api('/payments/subscriptions/me');
+    v.appendChild(el('h3', '', 'Provider subscription'));
+    if (subscription && subscription.plan_name && subscription.plan_name.toLowerCase().includes('provider')) {
+      v.appendChild(el('p', '', `Plan: <strong>${esc(subscription.plan_name)}</strong> · Status: ${badge(subscription.status)}`));
+      v.appendChild(el('p', 'muted', `Started ${fmtDate(subscription.starts_at)} · Expires ${fmtDate(subscription.expires_at)}`));
+    } else {
+      v.appendChild(el('p', '', 'Your provider account is approved. Choose the available package to start offering services.'));
+      if (provider_plan && provider_plan.active) {
+        v.appendChild(el('p', '', `<strong>${esc(provider_plan.name)}</strong> · ${fmtGHS(provider_plan.price)} / ${provider_plan.billing_period_days} days`));
+        if (provider_plan.description) v.appendChild(el('p', 'muted', esc(provider_plan.description)));
+        const b = el('button', 'btn', provider_plan.price > 0 ? 'Subscribe securely' : 'Activate provider package');
+        b.onclick = async () => {
+          b.disabled = true;
+          try {
+            const r = await api('/payments/subscriptions/subscribe', { method: 'POST', body: JSON.stringify({ audience: 'provider' }) });
+            if (r.payment && r.payment.authorization_url) window.location.href = r.payment.authorization_url;
+            else if (r.activated) { toast('Provider subscription active'); await loadUser(); }
+          } catch (e) { b.disabled = false; toast(e.message); }
+        };
+        v.appendChild(b);
+      } else v.appendChild(el('div', 'alert info', 'Provider subscriptions are not currently available.'));
+    }
+  } catch (e) { v.appendChild(el('div', 'alert error', esc(e.message))); }
   return v;
 }
 
@@ -619,17 +680,48 @@ async function providerListings() {
     const { listings } = await api('/provider/listings');
     if (!listings.length) { v.appendChild(el('div', 'empty', '<div class="icon">🏷️</div>No listings yet.')); return v; }
     const t = el('table', 'table');
-    t.innerHTML = '<thead><tr><th>Title</th><th>Category</th><th>Status</th><th>Price</th></tr></thead>';
+    t.innerHTML = '<thead><tr><th>Title</th><th>Category</th><th>Status</th><th>Price</th><th>Media</th></tr></thead>';
     const tb = el('tbody', '');
     listings.forEach(l => {
       const tr = el('tr', '');
       tr.innerHTML = `<td>${esc(l.title)}</td><td>${esc(CATEGORY_META[l.category]?.label || l.category)}</td><td>${badge(l.status)}</td><td>${l.price_per_night ? fmtGHS(l.price_per_night) + '/n' : l.price_per_month ? fmtGHS(l.price_per_month) + '/m' : '—'}</td>`;
+      const mediaCell = el('td');
+      mediaCell.appendChild(mediaUploadBox(l));
+      tr.appendChild(mediaCell);
       tb.appendChild(tr);
     });
     t.appendChild(tb);
     v.appendChild(t);
   } catch (e) { v.appendChild(el('div', 'alert error', esc(e.message))); }
   return v;
+}
+
+function mediaUploadBox(listing) {
+  const wrap = el('div', 'media-upload');
+  const form = el('form', '');
+  const input = el('input', '', '');
+  input.type = 'file'; input.name = 'media'; input.multiple = true;
+  input.accept = 'image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime,video/x-msvideo';
+  input.title = 'Choose images or videos';
+  const button = el('button', 'btn sm outline', 'Upload'); button.type = 'submit';
+  form.appendChild(input); form.appendChild(button);
+  const hint = el('div', 'muted', 'Up to 8 files, 50 MB each');
+  form.appendChild(hint);
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    if (!input.files.length) return toast('Choose at least one image or video.');
+    const data = new FormData();
+    Array.from(input.files).forEach(file => data.append('media', file));
+    button.disabled = true;
+    try {
+      const result = await api(`/provider/listings/${listing.id}/media`, { method: 'POST', body: data });
+      toast(`${result.media.length} media file${result.media.length === 1 ? '' : 's'} uploaded`);
+      input.value = '';
+    } catch (err) { toast(err.message); }
+    finally { button.disabled = false; }
+  };
+  wrap.appendChild(form);
+  return wrap;
 }
 
 function newListingView() {
@@ -790,6 +882,8 @@ async function chatThreadView() {
   v.appendChild(backBtn('Messages'));
   try {
     const { conversation, messages } = await api(`/chat/conversations/${state.params.id}/messages`);
+    const otherId = conversation.user_a === state.user.id ? conversation.user_b : conversation.user_a;
+    const other = messages.length ? (messages[0].sender_id === otherId ? messages[0] : null) : null;
     v.appendChild(el('h1', '', 'Chat'));
     const box = el('div', 'chat-box');
     box.style.cssText = 'border:1px solid #e5e7eb;border-radius:12px;padding:16px;min-height:300px;max-height:420px;overflow-y:auto;background:#fafafa;margin:16px 0';
@@ -874,7 +968,7 @@ function render() {
   app.appendChild(nav());
   const main = el('div', 'container');
   const view = state.view;
-  if (view === 'home' && state.params.q) main.appendChild(resultsView());
+  if (view === 'home' && state.params.q) mountAsync(main, resultsView);
   else if (view === 'home' && state.params.category) main.appendChild(categoryView(state.params.category));
   else if (view === 'home') main.appendChild(homeView());
   else if (view === 'rides') main.appendChild(categoryView('ride'));
@@ -882,13 +976,13 @@ function render() {
   else if (view === 'hotels') main.appendChild(categoryView('hotel'));
   else if (view === 'short_stay') main.appendChild(categoryView('short_stay'));
   else if (view === 'apartments') main.appendChild(categoryView('apartment'));
-  else if (view === 'listing') main.appendChild(listingView());
+  else if (view === 'listing') mountAsync(main, listingView);
   else if (view === 'login' || view === 'register') { app.appendChild(authView(view)); return; }
   else if (view === 'account') main.appendChild(accountView());
   else if (view === 'provider') main.appendChild(providerView());
-  else if (view === 'chat') main.appendChild(chatView());
-  else if (view === 'chat-thread') main.appendChild(chatThreadView());
-  else if (view === 'new-chat') main.appendChild(newChatView());
+  else if (view === 'chat') mountAsync(main, chatView);
+  else if (view === 'chat-thread') mountAsync(main, chatThreadView);
+  else if (view === 'new-chat') mountAsync(main, newChatView);
   else if (view === 'book') main.appendChild(bookView());
   else if (view === 'rate') main.appendChild(rateView());
   else if (view === 'new-dispute') main.appendChild(newDisputeView());
