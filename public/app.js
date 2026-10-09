@@ -444,6 +444,42 @@ async function bookingsTab() {
   return v;
 }
 
+function manualPaymentPanel(result, audience, host) {
+  host.innerHTML = '';
+  const i = result.instructions || {};
+  const card = el('div', 'card', '');
+  card.style.marginTop = '14px';
+  card.appendChild(el('h3', '', 'Manual payment instructions'));
+  card.appendChild(el('p', '', `Pay <strong>${fmtGHS(result.plan?.price || 0)}</strong> for ${esc(result.plan?.name || 'your subscription')}.`));
+  const momo = el('div', 'alert info', '<strong>MTN MoMo</strong>');
+  (i.momo || []).forEach(x => momo.appendChild(el('p', '', `<strong>${esc(x.number)}</strong> — ${esc(x.name)}`)));
+  card.appendChild(momo);
+  if (i.bank) card.appendChild(el('div', 'alert info', `<strong>${esc(i.bank.bank)}</strong><p>Account: <strong>${esc(i.bank.account)}</strong></p><p>Account name: <strong>${esc(i.bank.name)}</strong></p>`));
+  card.appendChild(el('p', 'muted', 'After you complete the transfer, tap Paid to notify the owner. Your subscription will stay pending until the payment is verified.'));
+  const paid = el('button', 'btn accent', 'Paid — notify owner');
+  paid.disabled = result.status === 'PAID_REPORTED' || result.already_reported;
+  if (paid.disabled) paid.textContent = 'Payment reported — awaiting verification';
+  paid.onclick = async () => {
+    paid.disabled = true;
+    try {
+      await api(`/payments/subscriptions/manual-payment/${result.submission_id}/paid`, { method: 'POST' });
+      paid.textContent = 'Payment reported — awaiting verification';
+      toast('Owner notified. Your subscription is pending verification.');
+    } catch (e) { paid.disabled = false; toast(e.message); }
+  };
+  card.appendChild(paid);
+  host.appendChild(card);
+}
+
+async function startManualSubscription(audience, host, button) {
+  button.disabled = true;
+  try {
+    const r = await api('/payments/subscriptions/manual-payment', { method: 'POST', body: JSON.stringify({ audience }) });
+    manualPaymentPanel(r, audience, host);
+  } catch (e) { toast(e.message); }
+  finally { button.disabled = false; }
+}
+
 async function subscriptionTab() {
   const v = el('div');
   try {
@@ -465,14 +501,10 @@ async function subscriptionTab() {
       c.appendChild(el('p', '', `${fmtGHS(p.price)} / ${p.billing_period_days} days`));
       if (p.trial_days) c.appendChild(el('p', 'muted', `${p.trial_days}-day trial`));
       const b = el('button', 'btn', 'Subscribe');
-      b.onclick = async () => {
-        try {
-          const r = await api('/payments/subscriptions/subscribe', { method: 'POST', body: JSON.stringify({ audience: p.audience }) });
-          if (r.payment && r.payment.authorization_url) { window.location.href = r.payment.authorization_url; }
-          else if (r.activated) { toast('Subscription active'); loadUser(); }
-        } catch (ex) { toast(ex.message); }
-      };
+      const paymentHost = el('div', '');
+      b.onclick = () => startManualSubscription(p.audience, paymentHost, b);
       c.appendChild(b);
+      c.appendChild(paymentHost);
       plans.appendChild(c);
     });
     v.appendChild(plans);
@@ -675,16 +707,11 @@ async function providerSubscriptionCard() {
       if (provider_plan && provider_plan.active) {
         v.appendChild(el('p', '', `<strong>${esc(provider_plan.name)}</strong> · ${fmtGHS(provider_plan.price)} / ${provider_plan.billing_period_days} days`));
         if (provider_plan.description) v.appendChild(el('p', 'muted', esc(provider_plan.description)));
-        const b = el('button', 'btn', provider_plan.price > 0 ? 'Subscribe securely' : 'Activate provider package');
-        b.onclick = async () => {
-          b.disabled = true;
-          try {
-            const r = await api('/payments/subscriptions/subscribe', { method: 'POST', body: JSON.stringify({ audience: 'provider' }) });
-            if (r.payment && r.payment.authorization_url) window.location.href = r.payment.authorization_url;
-            else if (r.activated) { toast('Provider subscription active'); await loadUser(); }
-          } catch (e) { b.disabled = false; toast(e.message); }
-        };
+        const b = el('button', 'btn', 'Subscribe');
+        const paymentHost = el('div', '');
+        b.onclick = () => startManualSubscription('provider', paymentHost, b);
         v.appendChild(b);
+        v.appendChild(paymentHost);
       } else v.appendChild(el('div', 'alert info', 'Provider subscriptions are not currently available.'));
     }
   } catch (e) { v.appendChild(el('div', 'alert error', esc(e.message))); }
