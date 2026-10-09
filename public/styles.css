@@ -115,4 +115,9 @@ label { font-size: 13px; font-weight: 600; color: var(--muted); display: block; 
   .hero { padding: 36px 22px; } .hero h1 { font-size: 27px; }
   .form-row { grid-template-columns: 1fr; }
   .nav-links { display: none; }
-}
+}.media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-top: 12px; }
+.listing-media { width: 100%; height: 180px; object-fit: cover; border-radius: 10px; background: #eee; border: 1px solid var(--border); }
+.media-upload { min-width: 220px; }
+.media-upload input[type=file] { max-width: 220px; font-size: 12px; margin-bottom: 6px; }
+.media-upload .btn { margin-left: 6px; }
+@media (max-width: 640px) { .media-grid { grid-template-columns: 1fr 1fr; } .listing-media { height: 130px; } .media-upload { min-width: 190px; } .media-upload input[type=file] { max-width: 185px; } }
