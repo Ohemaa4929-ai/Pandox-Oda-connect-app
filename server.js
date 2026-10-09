@@ -86,6 +86,15 @@ app.use((err, req, res, next) => {
     } else {
       const admin = db.prepare('SELECT * FROM admin_users WHERE user_id = ?').get(existing.id);
       if (!admin) db.prepare('INSERT INTO admin_users (user_id, role) VALUES (?, ?)').run(existing.id, 'SUPER_ADMIN');
+      // Keep the owner account active — protects against accidental deactivation from the dashboard.
+      if (existing.status !== 'ACTIVE') {
+        db.prepare("UPDATE users SET status = 'ACTIVE', updated_at = datetime('now') WHERE id = ?").run(existing.id);
+        console.log('[bootstrap] SUPER_ADMIN account reactivated.');
+      }
+      if (admin && admin.status !== 'ACTIVE') {
+        db.prepare("UPDATE admin_users SET status = 'ACTIVE' WHERE user_id = ?").run(existing.id);
+        console.log('[bootstrap] SUPER_ADMIN admin record reactivated.');
+      }
     }
   }
 })();
