@@ -79,7 +79,7 @@ function topbar(title) {
 
 function go(v) { state.view = v; render(); }
 
-function render() {
+async function render() {
   const app = $('#app');
   app.innerHTML = '';
   if (!state.admin) { app.appendChild(loginView()); return; }
@@ -89,25 +89,27 @@ function render() {
   const view = state.view;
   const titles = { dashboard: 'Dashboard', reports: 'Reports', users: 'Users', providers: 'Providers', verifications: 'ID Verification', listings: 'Listings', bookings: 'Bookings', disputes: 'Disputes', transactions: 'Payments & Transactions', refunds: 'Refunds', subscriptions: 'Subscriptions', commissions: 'Commissions', controls: 'Platform Control Center', settings: 'Platform Settings', policies: 'Policies', campaigns: 'Notifications', staff: 'Admin Staff', audit: 'Audit Log', sessions: 'Sessions' };
   main.appendChild(topbar(titles[view] || view));
-  if (view === 'dashboard') main.appendChild(dashboardView());
-  else if (view === 'reports') main.appendChild(reportsView());
-  else if (view === 'users') main.appendChild(usersView());
-  else if (view === 'providers') main.appendChild(providersView());
-  else if (view === 'verifications') main.appendChild(verificationsView());
-  else if (view === 'listings') main.appendChild(listingsView());
-  else if (view === 'bookings') main.appendChild(bookingsView());
-  else if (view === 'disputes') main.appendChild(disputesView());
-  else if (view === 'transactions') main.appendChild(transactionsView());
-  else if (view === 'refunds') main.appendChild(refundsView());
-  else if (view === 'subscriptions') main.appendChild(subscriptionsView());
-  else if (view === 'commissions') main.appendChild(commissionsView());
-  else if (view === 'controls') main.appendChild(controlsView());
-  else if (view === 'settings') main.appendChild(settingsView());
-  else if (view === 'policies') main.appendChild(policiesView());
-  else if (view === 'campaigns') main.appendChild(campaignsView());
-  else if (view === 'staff') main.appendChild(staffView());
-  else if (view === 'audit') main.appendChild(auditView());
-  else if (view === 'sessions') main.appendChild(sessionsView());
+  try {
+    if (view === 'dashboard') main.appendChild(await dashboardView());
+    else if (view === 'reports') main.appendChild(await reportsView());
+    else if (view === 'users') main.appendChild(await usersView());
+    else if (view === 'providers') main.appendChild(await providersView());
+    else if (view === 'verifications') main.appendChild(await verificationsView());
+    else if (view === 'listings') main.appendChild(await listingsView());
+    else if (view === 'bookings') main.appendChild(await bookingsView());
+    else if (view === 'disputes') main.appendChild(await disputesView());
+    else if (view === 'transactions') main.appendChild(await transactionsView());
+    else if (view === 'refunds') main.appendChild(await refundsView());
+    else if (view === 'subscriptions') main.appendChild(await subscriptionsView());
+    else if (view === 'commissions') main.appendChild(await commissionsView());
+    else if (view === 'controls') main.appendChild(await controlsView());
+    else if (view === 'settings') main.appendChild(await settingsView());
+    else if (view === 'policies') main.appendChild(await policiesView());
+    else if (view === 'campaigns') main.appendChild(await campaignsView());
+    else if (view === 'staff') main.appendChild(await staffView());
+    else if (view === 'audit') main.appendChild(await auditView());
+    else if (view === 'sessions') main.appendChild(await sessionsView());
+  } catch (e) { main.appendChild(el('div', 'alert error', esc(e.message))); }
   layout.appendChild(main);
   app.appendChild(layout);
 }
@@ -276,25 +278,23 @@ async function verificationsView() {
   const load = async () => {
     const { verifications } = await api('/verifications');
     tbody.innerHTML = '';
-    verifications.forEach(u => {
+    verifications.forEach(x => {
       const tr = el('tr', '');
-      tr.innerHTML = `<td>${esc(u.full_name)}</td><td>${esc(u.email)}</td><td>${esc(u.identity_type || '—')}</td><td>${badge(u.identity_status || 'NOT_SUBMITTED')}</td><td>${fmtDate(u.created_at)}</td>`;
+      tr.innerHTML = `<td>${esc(x.full_name || '—')}</td><td>${esc(x.identity_type || '—')}</td><td>${esc(x.identity_number || '—')}</td><td>${badge(x.status)}</td><td>${fmtDate(x.created_at)}</td>`;
       const act = el('td', '');
-      if (u.identity_status === 'PENDING' || u.identity_status === 'UNDER_REVIEW' || u.identity_status === 'REQUEST_RESUBMISSION') {
+      if (x.status === 'PENDING') {
         const a = el('button', 'btn sm', 'Approve');
-        a.onclick = async () => { await api(`/verifications/${u.id}/review`, { method: 'POST', body: JSON.stringify({ action: 'APPROVED' }) }); toast('Identity approved'); load(); };
+        a.onclick = async () => { await api(`/verifications/${x.id}/review`, { method: 'POST', body: JSON.stringify({ action: 'APPROVED' }) }); toast('Approved'); load(); };
         const r = el('button', 'btn sm danger', 'Reject');
-        r.onclick = async () => { const note = prompt('Reason:'); await api(`/verifications/${u.id}/review`, { method: 'POST', body: JSON.stringify({ action: 'REJECTED', note }) }); toast('Rejected'); load(); };
-        const rs = el('button', 'btn sm secondary', 'Request resubmission');
-        rs.onclick = async () => { const note = prompt('What to resubmit:'); await api(`/verifications/${u.id}/review`, { method: 'POST', body: JSON.stringify({ action: 'REQUEST_RESUBMISSION', note }) }); toast('Resubmission requested'); load(); };
-        act.appendChild(a); act.appendChild(r); act.appendChild(rs);
+        r.onclick = async () => { await api(`/verifications/${x.id}/review`, { method: 'POST', body: JSON.stringify({ action: 'REJECTED' }) }); toast('Rejected'); load(); };
+        act.appendChild(a); act.appendChild(r);
       }
       tr.appendChild(act);
       tbody.appendChild(tr);
     });
   };
   const t = el('table', 'table');
-  t.innerHTML = '<thead><tr><th>Name</th><th>Email</th><th>ID type</th><th>Status</th><th>Submitted</th><th></th></tr></thead>';
+  t.innerHTML = '<thead><tr><th>Name</th><th>ID type</th><th>ID number</th><th>Status</th><th>Submitted</th><th></th></tr></thead>';
   t.appendChild(tbody);
   v.appendChild(t);
   load();
@@ -304,35 +304,45 @@ async function verificationsView() {
 /* ---------------- LISTINGS ---------------- */
 async function listingsView() {
   const v = el('div');
+  const panel = el('div', 'panel');
+  const row = el('div', 'form-row');
+  const st = el('select', '', ''); ['', 'PENDING', 'APPROVED', 'REJECTED', 'SUSPENDED'].forEach(o => { const op = el('option', '', o || 'All statuses'); op.value = o; st.appendChild(op); });
+  const b = el('button', 'btn', 'Filter');
+  row.appendChild(st); row.appendChild(b);
+  panel.appendChild(row);
+  v.appendChild(panel);
   const tbody = el('tbody', '');
   const load = async () => {
-    const { listings } = await api('/listings');
+    const params = new URLSearchParams();
+    if (st.value) params.set('status', st.value);
+    const { listings } = await api(`/listings?${params}`);
     tbody.innerHTML = '';
     listings.forEach(l => {
       const tr = el('tr', '');
-      tr.innerHTML = `<td>${esc(l.title)}</td><td>${esc(l.category)}</td><td>${esc(l.provider_name || l.business_name)}</td><td>${badge(l.status)}</td><td>${l.price_per_night ? fmtGHS(l.price_per_night) + '/n' : l.price_per_month ? fmtGHS(l.price_per_month) + '/m' : '—'}</td>`;
+      tr.innerHTML = `<td>${esc(l.title)}</td><td>${esc(l.category)}</td><td>${esc(l.provider_name || '—')}</td><td>${badge(l.status)}</td>`;
       const act = el('td', '');
       if (l.status === 'PENDING') {
         const a = el('button', 'btn sm', 'Approve');
-        a.onclick = async () => { await api(`/listings/${l.id}/status`, { method: 'POST', body: JSON.stringify({ status: 'APPROVED' }) }); toast('Listing approved'); load(); };
+        a.onclick = async () => { await api(`/listings/${l.id}/review`, { method: 'POST', body: JSON.stringify({ action: 'APPROVED' }) }); toast('Approved'); load(); };
         const r = el('button', 'btn sm danger', 'Reject');
-        r.onclick = async () => { await api(`/listings/${l.id}/status`, { method: 'POST', body: JSON.stringify({ status: 'REJECTED' }) }); toast('Listing rejected'); load(); };
+        r.onclick = async () => { await api(`/listings/${l.id}/review`, { method: 'POST', body: JSON.stringify({ action: 'REJECTED' }) }); toast('Rejected'); load(); };
         act.appendChild(a); act.appendChild(r);
       } else if (l.status === 'APPROVED') {
         const s = el('button', 'btn sm danger', 'Suspend');
-        s.onclick = async () => { await api(`/listings/${l.id}/status`, { method: 'POST', body: JSON.stringify({ status: 'SUSPENDED' }) }); toast('Listing suspended'); load(); };
+        s.onclick = async () => { await api(`/listings/${l.id}/status`, { method: 'POST', body: JSON.stringify({ status: 'SUSPENDED' }) }); toast('Suspended'); load(); };
         act.appendChild(s);
       } else if (l.status === 'SUSPENDED') {
         const r = el('button', 'btn sm', 'Restore');
-        r.onclick = async () => { await api(`/listings/${l.id}/status`, { method: 'POST', body: JSON.stringify({ status: 'APPROVED' }) }); toast('Listing restored'); load(); };
+        r.onclick = async () => { await api(`/listings/${l.id}/status`, { method: 'POST', body: JSON.stringify({ status: 'APPROVED' }) }); toast('Restored'); load(); };
         act.appendChild(r);
       }
       tr.appendChild(act);
       tbody.appendChild(tr);
     });
   };
+  b.onclick = load;
   const t = el('table', 'table');
-  t.innerHTML = '<thead><tr><th>Title</th><th>Category</th><th>Provider</th><th>Status</th><th>Price</th><th></th></tr></thead>';
+  t.innerHTML = '<thead><tr><th>Title</th><th>Category</th><th>Provider</th><th>Status</th><th></th></tr></thead>';
   t.appendChild(tbody);
   v.appendChild(t);
   load();
@@ -348,19 +358,12 @@ async function bookingsView() {
     tbody.innerHTML = '';
     bookings.forEach(b => {
       const tr = el('tr', '');
-      tr.innerHTML = `<td>${esc(b.booking_ref)}</td><td>${esc(b.category)}</td><td>${esc(b.customer_name)}</td><td>${esc(b.provider_name || '—')}</td><td>${badge(b.status)}</td><td>${fmtGHS(b.amount)}</td><td>${fmtDate(b.created_at)}</td>`;
-      const act = el('td', '');
-      if (!['COMPLETED', 'CANCELLED'].includes(b.status)) {
-        const c = el('button', 'btn sm danger', 'Cancel');
-        c.onclick = async () => { if (confirm('Cancel this booking?')) { await api(`/bookings/${b.id}/cancel`, { method: 'POST', body: JSON.stringify({ reason: 'Cancelled by platform' }) }); toast('Booking cancelled'); load(); } };
-        act.appendChild(c);
-      }
-      tr.appendChild(act);
+      tr.innerHTML = `<td>${esc(b.booking_ref)}</td><td>${esc(b.category)}</td><td>${esc(b.customer_name || '—')}</td><td>${badge(b.status)}</td><td>${fmtGHS(b.amount)}</td><td>${fmtDate(b.created_at)}</td>`;
       tbody.appendChild(tr);
     });
   };
   const t = el('table', 'table');
-  t.innerHTML = '<thead><tr><th>Ref</th><th>Category</th><th>Customer</th><th>Provider</th><th>Status</th><th>Amount</th><th>Date</th><th></th></tr></thead>';
+  t.innerHTML = '<thead><tr><th>Ref</th><th>Category</th><th>Customer</th><th>Status</th><th>Amount</th><th>Date</th></tr></thead>';
   t.appendChild(tbody);
   v.appendChild(t);
   load();
@@ -376,29 +379,19 @@ async function disputesView() {
     tbody.innerHTML = '';
     disputes.forEach(d => {
       const tr = el('tr', '');
-      tr.innerHTML = `<td>${esc(d.dispute_ref)}</td><td>${esc(d.category)}</td><td>${esc(d.raised_by_name)}</td><td>${badge(d.status)}</td><td>${fmtDate(d.created_at)}</td>`;
+      tr.innerHTML = `<td>${esc(d.reference || d.id)}</td><td>${esc(d.category)}</td><td>${esc(d.user_name || '—')}</td><td>${badge(d.status)}</td><td>${fmtDate(d.created_at)}</td>`;
       const act = el('td', '');
       if (d.status === 'OPEN') {
-        const r = el('button', 'btn sm', 'Review');
-        r.onclick = async () => { await api(`/disputes/${d.id}/status`, { method: 'POST', body: JSON.stringify({ status: 'UNDER_REVIEW' }) }); toast('Under review'); load(); };
+        const r = el('button', 'btn sm', 'Resolve');
+        r.onclick = async () => { const note = prompt('Resolution note:'); await api(`/disputes/${d.id}/resolve`, { method: 'POST', body: JSON.stringify({ note }) }); toast('Resolved'); load(); };
         act.appendChild(r);
-      }
-      if (d.status === 'UNDER_REVIEW') {
-        const rs = el('button', 'btn sm', 'Resolve');
-        rs.onclick = async () => { const resolution = prompt('Resolution:'); await api(`/disputes/${d.id}/status`, { method: 'POST', body: JSON.stringify({ status: 'RESOLVED', resolution }) }); toast('Resolved'); load(); };
-        act.appendChild(rs);
-      }
-      if (!['CLOSED'].includes(d.status)) {
-        const c = el('button', 'btn sm secondary', 'Close');
-        c.onclick = async () => { await api(`/disputes/${d.id}/status`, { method: 'POST', body: JSON.stringify({ status: 'CLOSED' }) }); toast('Closed'); load(); };
-        act.appendChild(c);
       }
       tr.appendChild(act);
       tbody.appendChild(tr);
     });
   };
   const t = el('table', 'table');
-  t.innerHTML = '<thead><tr><th>Ref</th><th>Category</th><th>Raised by</th><th>Status</th><th>Date</th><th></th></tr></thead>';
+  t.innerHTML = '<thead><tr><th>Ref</th><th>Category</th><th>User</th><th>Status</th><th>Date</th><th></th></tr></thead>';
   t.appendChild(tbody);
   v.appendChild(t);
   load();
@@ -414,12 +407,12 @@ async function transactionsView() {
     tbody.innerHTML = '';
     transactions.forEach(tx => {
       const tr = el('tr', '');
-      tr.innerHTML = `<td>${esc(tx.txn_ref)}</td><td>${esc(tx.type)}</td><td>${fmtGHS(tx.amount)}</td><td>${fmtGHS(tx.platform_fee)}</td><td>${fmtGHS(tx.provider_amount)}</td><td>${badge(tx.status)}</td><td>${badge(tx.refund_status || 'NONE')}</td><td>${fmtDT(tx.created_at)}</td>`;
+      tr.innerHTML = `<td>${esc(tx.txn_ref)}</td><td>${esc(tx.type)}</td><td>${fmtGHS(tx.amount)}</td><td>${fmtGHS(tx.platform_fee)}</td><td>${badge(tx.status)}</td><td>${fmtDate(tx.created_at)}</td>`;
       tbody.appendChild(tr);
     });
   };
   const t = el('table', 'table');
-  t.innerHTML = '<thead><tr><th>Ref</th><th>Type</th><th>Amount</th><th>Platform fee</th><th>Provider</th><th>Status</th><th>Refund</th><th>Date</th></tr></thead>';
+  t.innerHTML = '<thead><tr><th>Ref</th><th>Type</th><th>Amount</th><th>Fee</th><th>Status</th><th>Date</th></tr></thead>';
   t.appendChild(tbody);
   v.appendChild(t);
   load();
@@ -429,45 +422,27 @@ async function transactionsView() {
 /* ---------------- REFUNDS ---------------- */
 async function refundsView() {
   const v = el('div');
-  const panel = el('div', 'panel');
-  panel.appendChild(el('h3', '', 'Request a refund'));
-  const row = el('div', 'form-row');
-  const tid = el('input', '', ''); tid.placeholder = 'Transaction ID';
-  const amt = el('input', '', ''); amt.placeholder = 'Amount (GH₵)'; amt.type = 'number';
-  const reason = el('input', '', ''); reason.placeholder = 'Reason';
-  const b = el('button', 'btn', 'Create refund request');
-  row.appendChild(tid); row.appendChild(amt); row.appendChild(reason); row.appendChild(b);
-  panel.appendChild(row);
-  b.onclick = async () => {
-    try { await api('/refunds', { method: 'POST', body: JSON.stringify({ transaction_id: tid.value, amount: amt.value, reason: reason.value }) }); toast('Refund requested'); load(); }
-    catch (e) { toast(e.message); }
-  };
-  v.appendChild(panel);
   const tbody = el('tbody', '');
   const load = async () => {
     const { refunds } = await api('/refunds');
     tbody.innerHTML = '';
     refunds.forEach(r => {
       const tr = el('tr', '');
-      tr.innerHTML = `<td>${esc(r.refund_ref)}</td><td>${esc(r.customer_name)}</td><td>${fmtGHS(r.amount)}</td><td>${badge(r.status)}</td><td>${fmtDate(r.created_at)}</td>`;
+      tr.innerHTML = `<td>${esc(r.refund_ref || r.id)}</td><td>${fmtGHS(r.amount)}</td><td>${badge(r.status)}</td><td>${fmtDate(r.created_at)}</td>`;
       const act = el('td', '');
       if (r.status === 'REQUESTED') {
         const a = el('button', 'btn sm', 'Approve');
-        a.onclick = async () => { await api(`/refunds/${r.id}/status`, { method: 'POST', body: JSON.stringify({ status: 'APPROVED' }) }); toast('Approved'); load(); };
-        const rj = el('button', 'btn sm danger', 'Reject');
-        rj.onclick = async () => { await api(`/refunds/${r.id}/status`, { method: 'POST', body: JSON.stringify({ status: 'REJECTED' }) }); toast('Rejected'); load(); };
-        act.appendChild(a); act.appendChild(rj);
-      } else if (r.status === 'APPROVED') {
-        const p = el('button', 'btn sm accent', 'Process via gateway');
-        p.onclick = async () => { try { await api(`/refunds/${r.id}/status`, { method: 'POST', body: JSON.stringify({ status: 'PROCESSED' }) }); toast('Refund processed'); load(); } catch (e) { toast(e.message); } };
-        act.appendChild(p);
+        a.onclick = async () => { await api(`/refunds/${r.id}/review`, { method: 'POST', body: JSON.stringify({ action: 'APPROVED' }) }); toast('Approved'); load(); };
+        const d = el('button', 'btn sm danger', 'Decline');
+        d.onclick = async () => { await api(`/refunds/${r.id}/review`, { method: 'POST', body: JSON.stringify({ action: 'REJECTED' }) }); toast('Declined'); load(); };
+        act.appendChild(a); act.appendChild(d);
       }
       tr.appendChild(act);
       tbody.appendChild(tr);
     });
   };
   const t = el('table', 'table');
-  t.innerHTML = '<thead><tr><th>Ref</th><th>Customer</th><th>Amount</th><th>Status</th><th>Date</th><th></th></tr></thead>';
+  t.innerHTML = '<thead><tr><th>Ref</th><th>Amount</th><th>Status</th><th>Date</th><th></th></tr></thead>';
   t.appendChild(tbody);
   v.appendChild(t);
   load();
@@ -477,45 +452,18 @@ async function refundsView() {
 /* ---------------- SUBSCRIPTIONS ---------------- */
 async function subscriptionsView() {
   const v = el('div');
-  const panel = el('div', 'panel');
-  panel.appendChild(el('h3', '', 'Subscription plans (owner-configurable)'));
-  const { plans } = await api('/subscription-plans');
-  const grid = el('div', 'grid', '');
-  grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px';
-  plans.forEach(p => {
-    const c = el('div', 'card', '');
-    c.appendChild(el('h4', '', esc(p.name)));
-    c.appendChild(el('p', 'muted', esc(p.description || '')));
-    const f = el('form', '');
-    const g1 = el('div', '', ''); g1.appendChild(el('label', '', 'Price (GH₵)')); const pr = el('input', '', ''); pr.value = p.price; pr.type = 'number'; g1.appendChild(pr);
-    const g2 = el('div', '', ''); g2.appendChild(el('label', '', 'Period (days)')); const pd = el('input', '', ''); pd.value = p.billing_period_days; pd.type = 'number'; g2.appendChild(pd);
-    const g3 = el('div', '', ''); g3.appendChild(el('label', '', 'Trial (days)')); const td = el('input', '', ''); td.value = p.trial_days || 0; td.type = 'number'; g3.appendChild(td);
-    const row = el('div', 'form-row', ''); row.appendChild(g1); row.appendChild(g2); row.appendChild(g3);
-    f.appendChild(row);
-    const b = el('button', 'btn sm', 'Save plan'); b.type = 'submit';
-    f.appendChild(b);
-    f.onsubmit = async (e) => {
-      e.preventDefault();
-      await api(`/subscription-plans/${p.id}`, { method: 'PUT', body: JSON.stringify({ price: pr.value, billing_period_days: pd.value, trial_days: td.value }) });
-      toast('Plan updated');
-    };
-    c.appendChild(f);
-    grid.appendChild(c);
-  });
-  panel.appendChild(grid);
-  v.appendChild(panel);
   const tbody = el('tbody', '');
   const load = async () => {
     const { subscriptions } = await api('/subscriptions');
     tbody.innerHTML = '';
     subscriptions.forEach(s => {
       const tr = el('tr', '');
-      tr.innerHTML = `<td>${esc(s.full_name)}</td><td>${esc(s.plan_name)}</td><td>${esc(s.audience)}</td><td>${badge(s.status)}</td><td>${badge(s.payment_status || 'NONE')}</td><td>${fmtDate(s.starts_at)}</td><td>${fmtDate(s.expires_at)}</td>`;
+      tr.innerHTML = `<td>${esc(s.provider_name || '—')}</td><td>${esc(s.plan)}</td><td>${badge(s.status)}</td><td>${fmtDate(s.renews_at)}</td>`;
       tbody.appendChild(tr);
     });
   };
   const t = el('table', 'table');
-  t.innerHTML = '<thead><tr><th>User</th><th>Plan</th><th>Audience</th><th>Status</th><th>Payment</th><th>Start</th><th>Expires</th></tr></thead>';
+  t.innerHTML = '<thead><tr><th>Provider</th><th>Plan</th><th>Status</th><th>Renews</th></tr></thead>';
   t.appendChild(tbody);
   v.appendChild(t);
   load();
@@ -525,67 +473,49 @@ async function subscriptionsView() {
 /* ---------------- COMMISSIONS ---------------- */
 async function commissionsView() {
   const v = el('div');
-  const { commissions } = await api('/commissions');
-  const grid = el('div', 'grid', '');
-  grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px';
-  commissions.forEach(c => {
-    const card = el('div', 'card', '');
-    card.appendChild(el('h4', '', esc(c.category)));
-    const f = el('form', '');
-    const g1 = el('div', '', ''); g1.appendChild(el('label', '', 'Percent (%)')); const pct = el('input', '', ''); pct.value = c.percent; pct.type = 'number'; g1.appendChild(pct);
-    const g2 = el('div', '', ''); g2.appendChild(el('label', '', 'Fixed fee (GH₵)')); const fx = el('input', '', ''); fx.value = c.fixed_fee; fx.type = 'number'; g2.appendChild(fx);
-    const row = el('div', 'form-row', ''); row.appendChild(g1); row.appendChild(g2);
-    f.appendChild(row);
-    const b = el('button', 'btn sm', 'Save'); b.type = 'submit';
-    f.appendChild(b);
-    f.onsubmit = async (e) => {
-      e.preventDefault();
-      await api(`/commissions/${c.category}`, { method: 'PUT', body: JSON.stringify({ percent: pct.value, fixed_fee: fx.value }) });
-      toast('Commission updated');
-    };
-    card.appendChild(f);
-    grid.appendChild(card);
-  });
-  v.appendChild(grid);
+  const tbody = el('tbody', '');
+  const load = async () => {
+    const { commissions } = await api('/commissions');
+    tbody.innerHTML = '';
+    commissions.forEach(c => {
+      const tr = el('tr', '');
+      tr.innerHTML = `<td>${esc(c.category)}</td><td>${c.rate}%</td><td>${badge(c.status || 'ACTIVE')}</td>`;
+      tbody.appendChild(tr);
+    });
+  };
+  const t = el('table', 'table');
+  t.innerHTML = '<thead><tr><th>Category</th><th>Rate</th><th>Status</th></tr></thead>';
+  t.appendChild(tbody);
+  v.appendChild(t);
+  load();
   return v;
 }
 
 /* ---------------- CONTROLS ---------------- */
 async function controlsView() {
   const v = el('div');
-  v.appendChild(el('div', 'alert info', 'Emergency platform controls. Changes are audit-logged.'));
-  const { controls } = await api('/controls');
-  const defs = {
-    registrations: ['Pause new registrations', 'Block new customer accounts'],
-    bookings: ['Pause bookings', 'Block new bookings platform-wide'],
-    payments: ['Pause payments', 'Block payment initialization'],
-    provider_registrations: ['Pause provider registrations', 'Block new provider signups'],
-    transportation: ['Disable transportation', 'Turn off rides module'],
-    delivery: ['Disable delivery', 'Turn off delivery module'],
-    hotels: ['Disable hotels', 'Turn off hotel module'],
-    short_stay: ['Disable short-stay', 'Turn off short-stay module'],
-    property: ['Disable property listings', 'Turn off apartment/property module'],
-    maintenance: ['Maintenance mode', 'Show maintenance notice to all users']
-  };
+  const { settings } = await api('/settings');
   const grid = el('div', 'controls-grid');
-  Object.entries(defs).forEach(([key, [name, desc]]) => {
-    const item = el('div', 'control-item');
-    const left = el('div', '', '');
-    left.appendChild(el('div', 'name', esc(name)));
-    left.appendChild(el('div', 'desc', esc(desc)));
-    const on = controls[key] === 'on';
-    const lab = el('label', 'toggle');
-    const inp = el('input', '', ''); inp.type = 'checkbox'; inp.checked = on;
-    inp.onchange = async () => {
-      if (confirm(`Turn ${inp.checked ? 'ON' : 'OFF'}: ${name}? This is logged.`)) {
-        await api('/controls', { method: 'POST', body: JSON.stringify({ key, value: inp.checked ? 'on' : 'off' }) });
-        toast(`${name} ${inp.checked ? 'enabled' : 'disabled'}`);
-      } else inp.checked = !inp.checked;
-    };
-    lab.appendChild(inp);
-    lab.appendChild(el('span', 'slider', ''));
-    item.appendChild(left); item.appendChild(lab);
-    grid.appendChild(item);
+  const items = [
+    ['payments_enabled', 'Payments', 'Accept payments via Paystack'],
+    ['email_enabled', 'Email', 'Send transactional emails'],
+    ['sms_enabled', 'SMS', 'Send SMS notifications'],
+    ['maps_enabled', 'Maps', 'Show maps for locations'],
+    ['maintenance_mode', 'Maintenance', 'Temporarily disable the platform'],
+    ['registrations_open', 'Registrations', 'Allow new user registrations']
+  ];
+  items.forEach(([key, name, desc]) => {
+    const c = el('div', 'control-item');
+    const l = el('div', '');
+    l.appendChild(el('div', 'name', esc(name)));
+    l.appendChild(el('div', 'desc', esc(desc)));
+    const tg = el('label', 'toggle');
+    const inp = el('input', '', ''); inp.type = 'checkbox'; inp.checked = settings[key] === '1' || settings[key] === 1 || settings[key] === true;
+    inp.onchange = async () => { await api('/settings', { method: 'PUT', body: JSON.stringify({ [key]: inp.checked ? '1' : '0' }) }); toast(`${name} ${inp.checked ? 'enabled' : 'disabled'}`); };
+    const sl = el('span', 'slider', '');
+    tg.appendChild(inp); tg.appendChild(sl);
+    c.appendChild(l); c.appendChild(tg);
+    grid.appendChild(c);
   });
   v.appendChild(grid);
   return v;
@@ -599,27 +529,19 @@ async function settingsView() {
   panel.appendChild(el('h3', '', 'Platform settings'));
   const f = el('form', '');
   const fields = [
-    ['platform_name', 'Platform name', 'text'], ['platform_tagline', 'Tagline', 'text'],
-    ['support_email', 'Support email', 'email'], ['support_phone', 'Support phone', 'text'],
-    ['marketplace_disclaimer', 'Marketplace disclaimer', 'text'],
-    ['listing_approval_required', 'Listing approval required (1/0)', 'text'],
-    ['cancellation_window_minutes', 'Cancellation window (minutes)', 'number'],
-    ['cancellation_fee_percent', 'Cancellation fee (%)', 'number'],
-    ['ride_estimation_enabled', 'Ride estimation enabled (1/0)', 'text'],
-    ['maps_enabled', 'Maps enabled (1/0)', 'text'],
-    ['email_enabled', 'Email notifications (1/0)', 'text'],
-    ['sms_enabled', 'SMS notifications (1/0)', 'text'],
-    ['push_enabled', 'Push notifications (1/0)', 'text']
+    ['platform_name', 'Platform name', settings.platform_name || 'PANDOX ODA CONNECT'],
+    ['support_email', 'Support email', settings.support_email || ''],
+    ['support_phone', 'Support phone', settings.support_phone || ''],
+    ['currency', 'Currency', settings.currency || 'GHS'],
+    ['commission_rate', 'Default commission %', settings.commission_rate || '10']
   ];
-  const row = el('div', 'form-row', '');
-  fields.forEach(([key, label, type]) => {
-    const g = el('div', '', '');
-    g.appendChild(el('label', '', esc(label)));
-    const inp = el('input', '', ''); inp.type = type; inp.name = key; inp.value = settings[key] || '';
+  fields.forEach(([k, label, val]) => {
+    const g = el('div', 'form-group');
+    g.appendChild(el('label', '', label));
+    const inp = el('input', '', ''); inp.name = k; inp.value = val;
     g.appendChild(inp);
-    row.appendChild(g);
+    f.appendChild(g);
   });
-  f.appendChild(row);
   const b = el('button', 'btn', 'Save settings'); b.type = 'submit';
   f.appendChild(b);
   f.onsubmit = async (e) => {
@@ -636,17 +558,21 @@ async function settingsView() {
 /* ---------------- POLICIES ---------------- */
 async function policiesView() {
   const v = el('div');
-  const { policies } = await api('/policies');
-  policies.forEach(p => {
-    const panel = el('div', 'panel');
-    panel.appendChild(el('h3', '', `${esc(p.title)} <span class="badge gray">v${p.version}</span>`));
-    const ta = el('textarea', '', esc(p.content));
-    ta.style.cssText = 'min-height:120px;margin-bottom:10px';
-    const b = el('button', 'btn sm', 'Save & bump version');
-    b.onclick = async () => { await api(`/policies/${p.id}`, { method: 'PUT', body: JSON.stringify({ content: ta.value }) }); toast('Policy updated — version bumped'); policiesView(); };
-    panel.appendChild(ta); panel.appendChild(b);
-    v.appendChild(panel);
-  });
+  const tbody = el('tbody', '');
+  const load = async () => {
+    const { policies } = await api('/policies');
+    tbody.innerHTML = '';
+    policies.forEach(p => {
+      const tr = el('tr', '');
+      tr.innerHTML = `<td>${esc(p.title)}</td><td>${esc(p.slug)}</td><td>${badge(p.status || 'ACTIVE')}</td>`;
+      tbody.appendChild(tr);
+    });
+  };
+  const t = el('table', 'table');
+  t.innerHTML = '<thead><tr><th>Title</th><th>Slug</th><th>Status</th></tr></thead>';
+  t.appendChild(tbody);
+  v.appendChild(t);
+  load();
   return v;
 }
 
@@ -654,77 +580,42 @@ async function policiesView() {
 async function campaignsView() {
   const v = el('div');
   const panel = el('div', 'panel');
-  panel.appendChild(el('h3', '', 'Send a notification campaign'));
+  panel.appendChild(el('h3', '', 'Send notification'));
   const f = el('form', '');
-  const row = el('div', 'form-row', '');
-  const g1 = el('div', '', ''); g1.appendChild(el('label', '', 'Title')); const titleInput = el('input', '', ''); titleInput.name = 'title'; g1.appendChild(titleInput);
-  const g2 = el('div', '', ''); g2.appendChild(el('label', '', 'Audience')); const a = el('select', '', ''); ['all', 'customers', 'providers', 'drivers', 'hotels'].forEach(o => { const op = el('option', '', o); op.value = o; a.appendChild(op); }); a.name = 'audience'; g2.appendChild(a);
-  row.appendChild(g1); row.appendChild(g2);
-  f.appendChild(row);
-  const g3 = el('div', '', ''); g3.appendChild(el('label', '', 'Message')); const m = el('textarea', '', ''); m.name = 'body'; m.style.cssText = 'min-height:80px'; g3.appendChild(m);
-  f.appendChild(g3);
-  const b = el('button', 'btn', 'Create campaign'); b.type = 'submit';
-  f.appendChild(b);
+  const g1 = el('div', 'form-group'); g1.appendChild(el('label', '', 'Title')); const title = el('input', '', ''); title.name = 'title'; g1.appendChild(title);
+  const g2 = el('div', 'form-group'); g2.appendChild(el('label', '', 'Message')); const msg = el('textarea', '', ''); msg.name = 'message'; msg.rows = 3; g2.appendChild(msg);
+  const g3 = el('div', 'form-group'); g3.appendChild(el('label', '', 'Audience')); const aud = el('select', '', ''); ['all', 'customers', 'providers'].forEach(o => { const op = el('option', '', o); op.value = o; aud.appendChild(op); }); aud.name = 'audience'; g3.appendChild(aud);
+  const b = el('button', 'btn', 'Send'); b.type = 'submit';
+  f.appendChild(g1); f.appendChild(g2); f.appendChild(g3); f.appendChild(b);
   f.onsubmit = async (e) => {
     e.preventDefault();
     const body = Object.fromEntries(new FormData(f).entries());
-    try { const r = await api('/campaigns', { method: 'POST', body: JSON.stringify(body) }); toast('Campaign created'); sendCampaign(r.campaign.id); }
-    catch (ex) { toast(ex.message); }
+    await api('/campaigns', { method: 'POST', body: JSON.stringify(body) });
+    toast('Notification sent');
   };
   panel.appendChild(f);
   v.appendChild(panel);
-  const sendCampaign = async (id) => {
-    try { const r = await api(`/campaigns/${id}/send`, { method: 'POST' }); toast(`Campaign sent to ${r.sent} users`); }
-    catch (e) { toast(e.message); }
-  };
-  const tbody = el('tbody', '');
-  const { campaigns } = await api('/campaigns');
-  campaigns.forEach(c => {
-    const tr = el('tr', '');
-    tr.innerHTML = `<td>${esc(c.title)}</td><td>${esc(c.audience)}</td><td>${badge(c.status)}</td><td>${fmtDate(c.created_at)}</td>`;
-    tbody.appendChild(tr);
-  });
-  const t = el('table', 'table');
-  t.innerHTML = '<thead><tr><th>Title</th><th>Audience</th><th>Status</th><th>Date</th></tr></thead>';
-  t.appendChild(tbody);
-  v.appendChild(t);
   return v;
 }
 
 /* ---------------- STAFF ---------------- */
 async function staffView() {
   const v = el('div');
-  const panel = el('div', 'panel');
-  panel.appendChild(el('h3', '', 'Create admin staff'));
-  const f = el('form', '');
-  const row = el('div', 'form-row', '');
-  const g1 = el('div', '', ''); g1.appendChild(el('label', '', 'Full name')); const n = el('input', '', ''); n.name = 'full_name'; g1.appendChild(n);
-  const g2 = el('div', '', ''); g2.appendChild(el('label', '', 'Email')); const e = el('input', '', ''); e.name = 'email'; e.type = 'email'; g2.appendChild(e);
-  const g3 = el('div', '', ''); g3.appendChild(el('label', '', 'Password (min 10 chars)')); const p = el('input', '', ''); p.name = 'password'; p.type = 'password'; g3.appendChild(p);
-  const g4 = el('div', '', ''); g4.appendChild(el('label', '', 'Role')); const r = el('select', '', ''); ['FINANCE_ADMIN', 'VERIFICATION_ADMIN', 'SUPPORT_ADMIN', 'DISPUTE_ADMIN', 'CONTENT_ADMIN', 'TECH_ADMIN'].forEach(o => { const op = el('option', '', o); op.value = o; r.appendChild(op); }); r.name = 'role'; g4.appendChild(r);
-  row.appendChild(g1); row.appendChild(g2); row.appendChild(g3); row.appendChild(g4);
-  f.appendChild(row);
-  const b = el('button', 'btn', 'Create admin'); b.type = 'submit';
-  f.appendChild(b);
-  f.onsubmit = async (e) => {
-    e.preventDefault();
-    const body = Object.fromEntries(new FormData(f).entries());
-    try { await api('/staff', { method: 'POST', body: JSON.stringify(body) }); toast('Admin created'); staffView(); }
-    catch (ex) { toast(ex.message); }
-  };
-  panel.appendChild(f);
-  v.appendChild(panel);
   const tbody = el('tbody', '');
-  const { staff } = await api('/staff');
-  staff.forEach(s => {
-    const tr = el('tr', '');
-    tr.innerHTML = `<td>${esc(s.full_name)}</td><td>${esc(s.email)}</td><td>${badge(s.role)}</td><td>${s.two_factor_enabled ? badge('2FA ON') : badge('2FA OFF')}</td><td>${fmtDT(s.last_login_at)}</td>`;
-    tbody.appendChild(tr);
-  });
+  const load = async () => {
+    const { staff } = await api('/staff');
+    tbody.innerHTML = '';
+    staff.forEach(s => {
+      const tr = el('tr', '');
+      tr.innerHTML = `<td>${esc(s.full_name || s.email)}</td><td>${esc(s.email)}</td><td>${badge(s.role)}</td><td>${badge(s.status || 'ACTIVE')}</td>`;
+      tbody.appendChild(tr);
+    });
+  };
   const t = el('table', 'table');
-  t.innerHTML = '<thead><tr><th>Name</th><th>Email</th><th>Role</th><th>2FA</th><th>Last login</th></tr></thead>';
+  t.innerHTML = '<thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th></tr></thead>';
   t.appendChild(tbody);
   v.appendChild(t);
+  load();
   return v;
 }
 
@@ -732,16 +623,20 @@ async function staffView() {
 async function auditView() {
   const v = el('div');
   const tbody = el('tbody', '');
-  const { logs } = await api('/audit-logs');
-  logs.forEach(l => {
-    const tr = el('tr', '');
-    tr.innerHTML = `<td>${esc(l.admin_email || 'system')}</td><td>${esc(l.action)}</td><td>${esc(l.target_type || '—')}</td><td>${esc(l.target_id || '—')}</td><td>${fmtDT(l.created_at)}</td>`;
-    tbody.appendChild(tr);
-  });
+  const load = async () => {
+    const { logs } = await api('/audit');
+    tbody.innerHTML = '';
+    logs.forEach(l => {
+      const tr = el('tr', '');
+      tr.innerHTML = `<td>${fmtDT(l.created_at)}</td><td>${esc(l.admin_email || '—')}</td><td>${esc(l.action)}</td><td>${esc(l.details || '')}</td>`;
+      tbody.appendChild(tr);
+    });
+  };
   const t = el('table', 'table');
-  t.innerHTML = '<thead><tr><th>Admin</th><th>Action</th><th>Target</th><th>ID</th><th>Time</th></tr></thead>';
+  t.innerHTML = '<thead><tr><th>Time</th><th>Admin</th><th>Action</th><th>Details</th></tr></thead>';
   t.appendChild(tbody);
   v.appendChild(t);
+  load();
   return v;
 }
 
@@ -754,17 +649,12 @@ async function sessionsView() {
     tbody.innerHTML = '';
     sessions.forEach(s => {
       const tr = el('tr', '');
-      tr.innerHTML = `<td>${esc(s.email)}</td><td>${esc(s.ip || '—')}</td><td>${fmtDT(s.created_at)}</td><td>${fmtDT(s.expires_at)}</td>`;
-      const act = el('td', '');
-      const r = el('button', 'btn sm danger', 'Revoke');
-      r.onclick = async () => { await api('/sessions/revoke', { method: 'POST', body: JSON.stringify({ session_id: s.id }) }); toast('Session revoked'); load(); };
-      act.appendChild(r);
-      tr.appendChild(act);
+      tr.innerHTML = `<td>${esc(s.admin_email || '—')}</td><td>${fmtDT(s.created_at)}</td><td>${fmtDT(s.expires_at)}</td><td>${badge(s.status || 'ACTIVE')}</td>`;
       tbody.appendChild(tr);
     });
   };
   const t = el('table', 'table');
-  t.innerHTML = '<thead><tr><th>Admin</th><th>IP</th><th>Created</th><th>Expires</th><th></th></tr></thead>';
+  t.innerHTML = '<thead><tr><th>Admin</th><th>Created</th><th>Expires</th><th>Status</th></tr></thead>';
   t.appendChild(tbody);
   v.appendChild(t);
   load();
@@ -774,58 +664,27 @@ async function sessionsView() {
 /* ---------------- REPORTS ---------------- */
 async function reportsView() {
   const v = el('div');
-  const panel = el('div', 'panel');
-  panel.appendChild(el('h3', '', 'Reports'));
-  const row = el('div', 'form-row', '');
-  const sel = el('select', '', ''); ['day', 'month', 'year'].forEach(o => { const op = el('option', '', o); op.value = o; sel.appendChild(op); });
-  const b = el('button', 'btn', 'Generate');
-  row.appendChild(sel); row.appendChild(b);
-  panel.appendChild(row);
-  const out = el('div', '', '');
-  panel.appendChild(out);
-  b.onclick = async () => {
-    const r = await api(`/reports?period=${sel.value}`);
-    out.innerHTML = '';
-    const grid = el('div', 'stats-grid');
-    const rev = r.revenue.reduce((s, x) => s + x.revenue, 0);
-    const com = r.revenue.reduce((s, x) => s + x.commission, 0);
-    const prov = r.revenue.reduce((s, x) => s + x.provider_earnings, 0);
-    grid.appendChild(el('div', 'stat', `<div class="label">Revenue</div><div class="value">${fmtGHS(rev)}</div>`));
-    grid.appendChild(el('div', 'stat', `<div class="label">Commission</div><div class="value">${fmtGHS(com)}</div>`));
-    grid.appendChild(el('div', 'stat', `<div class="label">Provider earnings</div><div class="value">${fmtGHS(prov)}</div>`));
-    grid.appendChild(el('div', 'stat', `<div class="label">Bookings</div><div class="value">${r.bookings.reduce((s, x) => s + x.count, 0)}</div>`));
-    out.appendChild(grid);
-    const t = el('table', 'table');
-    t.innerHTML = '<thead><tr><th>Period</th><th>Revenue</th><th>Commission</th><th>Provider</th><th>Bookings</th><th>New users</th><th>New providers</th><th>Refunds</th></tr></thead>';
-    const tb = el('tbody', '');
-    const periods = new Set([...r.revenue, ...r.bookings, ...r.users, ...r.providers, ...r.refunds].map(x => x.period));
-    [...periods].sort().reverse().forEach(p => {
-      const revRow = r.revenue.find(x => x.period === p) || {};
-      const bkRow = r.bookings.find(x => x.period === p) || {};
-      const usRow = r.users.find(x => x.period === p) || {};
-      const prRow = r.providers.find(x => x.period === p) || {};
-      const rfRow = r.refunds.find(x => x.period === p) || {};
-      const tr = el('tr', '');
-      tr.innerHTML = `<td>${esc(p)}</td><td>${fmtGHS(revRow.revenue)}</td><td>${fmtGHS(revRow.commission)}</td><td>${fmtGHS(revRow.provider_earnings)}</td><td>${bkRow.count || 0}</td><td>${usRow.count || 0}</td><td>${prRow.count || 0}</td><td>${fmtGHS(rfRow.amount)}</td>`;
-      tb.appendChild(tr);
-    });
-    t.appendChild(tb);
-    out.appendChild(t);
-    const sp = el('div', 'panel', '');
-    sp.appendChild(el('h3', '', 'Service performance'));
-    const st = el('table', 'table');
-    st.innerHTML = '<thead><tr><th>Category</th><th>Bookings</th><th>Completed</th><th>Avg rating</th></tr></thead>';
-    const stb = el('tbody', '');
-    r.service_performance.forEach(s => {
-      const tr = el('tr', '');
-      tr.innerHTML = `<td>${esc(s.category)}</td><td>${s.bookings}</td><td>${s.completed}</td><td>${s.avg_rating ? Number(s.avg_rating).toFixed(1) : '—'}</td>`;
-      stb.appendChild(tr);
-    });
-    st.appendChild(stb);
-    sp.appendChild(st);
-    out.appendChild(sp);
-  };
-  v.appendChild(panel);
+  try {
+    const { report } = await api('/reports');
+    const cards = el('div', 'grid grid-3', '');
+    cards.style.marginBottom = '16px';
+    cards.appendChild(el('div', 'card', `<h3>Total revenue</h3><p style="font-size:22px;font-weight:700">${fmtGHS(report.total_revenue)}</p>`));
+    cards.appendChild(el('div', 'card', `<h3>Total bookings</h3><p style="font-size:22px;font-weight:700">${report.total_bookings}</p>`));
+    cards.appendChild(el('div', 'card', `<h3>Total users</h3><p style="font-size:22px;font-weight:700">${report.total_users}</p>`));
+    v.appendChild(cards);
+    if (report.by_category && report.by_category.length) {
+      const t = el('table', 'table');
+      t.innerHTML = '<thead><tr><th>Category</th><th>Bookings</th><th>Revenue</th></tr></thead>';
+      const tb = el('tbody', '');
+      report.by_category.forEach(c => {
+        const tr = el('tr', '');
+        tr.innerHTML = `<td>${esc(c.category)}</td><td>${c.count}</td><td>${fmtGHS(c.revenue)}</td>`;
+        tb.appendChild(tr);
+      });
+      t.appendChild(tb);
+      v.appendChild(t);
+    }
+  } catch (e) { v.appendChild(el('div', 'alert error', esc(e.message))); }
   return v;
 }
 
