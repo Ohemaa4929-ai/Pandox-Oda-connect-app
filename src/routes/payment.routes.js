@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const { db } = require('../db');
 const config = require('../config');
 const { requireAuth } = require('../auth');
+const { notify } = require('../services/notifications');
 const payments = require('../services/payments');
 const subscriptions = require('../services/subscriptions');
 const router = express.Router();
@@ -56,6 +57,38 @@ router.post('/webhook/paystack', async (req, res) => {
 });
 
 // POST /api/subscriptions/subscribe
+// POST /api/payments/subscriptions/manual-payment — show payment details and create a pending request
+router.post('/subscriptions/manual-payment', requireAuth, (req, res) => {
+  const { audience } = req.body || {};
+  if (!['customer', 'provider'].includes(audience)) return res.status(400).json({ error: 'audience must be customer or provider' });
+  if (audience === 'provider') {
+    const provider = db.prepare('SELECT status FROM providers WHERE user_id = ?').get(req.user.id);
+    if (!provider) return res.status(403).json({ error: 'Provider account required.' });
+    if (provider.status !== 'APPROVED') return res.status(403).json({ error: 'Provider approval is required before subscribing.' });
+  }
+  const result = subscriptions.createManualPayment(req.user.id, audience);
+  if (result.error) return res.status(400).json(result);
+  res.json(result);
+});
+
+// POST /api/payments/subscriptions/manual-payment/:id/paid — user reports that payment was sent
+router.post('/subscriptions/manual-payment/:id/paid', requireAuth, (req, res) => {
+  const row = db.prepare(`SELECT m.*, s.status AS subscription_status, p.name AS plan_name
+    FROM manual_payment_submissions m JOIN subscriptions s ON s.id = m.subscription_id
+    JOIN subscription_plans p ON p.id = s.plan_id WHERE m.id = ? AND m.user_id = ?`).get(req.params.id, req.user.id);
+  if (!row) return res.status(404).json({ error: 'Payment request not found.' });
+  if (row.status === 'PAID_REPORTED' || row.status === 'APPROVED') return res.json({ reported: true, already_reported: true });
+  if (row.status !== 'PENDING') return res.status(400).json({ error: `This payment request is already ${row.status.toLowerCase()}.` });
+  db.prepare(`UPDATE manual_payment_submissions SET status = 'PAID_REPORTED', reported_at = datetime('now') WHERE id = ?`).run(row.id);
+  db.prepare(`UPDATE subscriptions SET payment_status = 'REPORTED', updated_at = datetime('now') WHERE id = ?`).run(row.subscription_id);
+  const admins = db.prepare(`SELECT u.id FROM users u JOIN admin_users a ON a.user_id = u.id WHERE u.status = 'ACTIVE' AND a.status = 'ACTIVE'`).all();
+  for (const admin of admins) {
+    notify(admin.id, 'manual_payment', 'Manual subscription payment reported', `${req.user.full_name} reported payment for ${row.plan_name}. Review it in Subscriptions.`);
+  }
+  notify(req.user.id, 'subscription', 'Payment report received', 'Your payment report was sent to the owner. Your subscription remains pending until payment is verified.');
+  res.json({ reported: true });
+});
+
 router.post('/subscriptions/subscribe', requireAuth, async (req, res) => {
   const { audience } = req.body || {};
   if (!['customer', 'provider'].includes(audience)) return res.status(400).json({ error: 'audience must be customer or provider' });
