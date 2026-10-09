@@ -287,6 +287,42 @@ router.post('/refunds/:id/status', requireAdmin(), async (req, res) => {
 });
 
 /* ---------------- SUBSCRIPTIONS ---------------- */
+router.get('/manual-payment-submissions', requireAdmin(), (req, res) => {
+  const submissions = db.prepare(`SELECT m.*, u.full_name, u.email, u.phone, s.status AS subscription_status
+    FROM manual_payment_submissions m JOIN users u ON u.id = m.user_id
+    JOIN subscriptions s ON s.id = m.subscription_id
+    ORDER BY CASE WHEN m.status = 'PAID_REPORTED' THEN 0 ELSE 1 END, m.created_at DESC LIMIT 200`).all();
+  res.json({ submissions });
+});
+
+router.post('/manual-payment-submissions/:id/status', requireAdmin('FINANCE_ADMIN'), (req, res) => {
+  const { status, note } = req.body || {};
+  if (!['APPROVED', 'REJECTED'].includes(status)) return res.status(400).json({ error: 'status must be APPROVED or REJECTED' });
+  const row = db.prepare(`SELECT m.*, s.status AS subscription_status, s.expires_at, p.billing_period_days, p.grace_days
+    FROM manual_payment_submissions m JOIN subscriptions s ON s.id = m.subscription_id
+    JOIN subscription_plans p ON p.id = s.plan_id WHERE m.id = ?`).get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'Manual payment submission not found' });
+  if (row.status === 'APPROVED' || row.status === 'REJECTED') return res.status(400).json({ error: `Submission is already ${row.status}` });
+  const now = new Date();
+  if (status === 'APPROVED') {
+    const starts = now.toISOString();
+    const expires = new Date(now.getTime() + row.billing_period_days * 864e5).toISOString();
+    db.prepare(`UPDATE manual_payment_submissions SET status = 'APPROVED', reviewed_at = datetime('now'), reviewed_by = ?, review_note = ? WHERE id = ?`).run(req.user.id, note || null, row.id);
+    db.prepare(`UPDATE subscriptions SET status = 'ACTIVE', payment_status = 'PAID', starts_at = ?, expires_at = ?, updated_at = datetime('now') WHERE id = ?`).run(starts, expires, row.subscription_id);
+    if (row.audience === 'provider') {
+      const provider = db.prepare('SELECT * FROM providers WHERE user_id = ?').get(row.user_id);
+      if (provider) db.prepare(`UPDATE providers SET subscription_status = 'ACTIVE', subscription_start = ?, subscription_expiry = ?, subscription_grace_until = ? WHERE id = ?`).run(starts, expires, expires, provider.id);
+    }
+    notify(row.user_id, 'subscription', 'Subscription payment verified', 'Your manual subscription payment was verified and your subscription is now active.');
+  } else {
+    db.prepare(`UPDATE manual_payment_submissions SET status = 'REJECTED', reviewed_at = datetime('now'), reviewed_by = ?, review_note = ? WHERE id = ?`).run(req.user.id, note || null, row.id);
+    db.prepare(`UPDATE subscriptions SET status = 'REJECTED', payment_status = 'FAILED', updated_at = datetime('now') WHERE id = ?`).run(row.subscription_id);
+    notify(row.user_id, 'subscription', 'Subscription payment needs attention', note || 'The owner could not verify this payment. Please contact support.');
+  }
+  audit(req.user.id, 'MANUAL_SUBSCRIPTION_PAYMENT_' + status, 'manual_payment_submission', row.id, { status: row.status }, { status, note: note || null });
+  res.json({ message: 'Manual payment ' + status.toLowerCase() });
+});
+
 router.get('/subscriptions', requireAdmin(), (req, res) => {
   const rows = db.prepare(`SELECT s.*, u.full_name, p.name AS plan_name, p.audience FROM subscriptions s
     JOIN users u ON u.id = s.user_id JOIN subscription_plans p ON p.id = s.plan_id
