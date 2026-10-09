@@ -1,0 +1,19 @@
+# PANDOX ODA CONNECT — one-command deploy
+# Usage: docker compose up -d
+# The database persists in ./data (survives restarts/updates).
+services:
+  pandox:
+    build: .
+    container_name: pandox-oda-connect
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      DB_PATH: /app/data/pandox.db
+      UPLOAD_DIR: /app/uploads
+    volumes:
+      - ./data:/app/data
+      - ./uploads:/app/uploads
