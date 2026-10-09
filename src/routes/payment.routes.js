@@ -59,6 +59,11 @@ router.post('/webhook/paystack', async (req, res) => {
 router.post('/subscriptions/subscribe', requireAuth, async (req, res) => {
   const { audience } = req.body || {};
   if (!['customer', 'provider'].includes(audience)) return res.status(400).json({ error: 'audience must be customer or provider' });
+  if (audience === 'provider') {
+    const provider = db.prepare('SELECT status FROM providers WHERE user_id = ?').get(req.user.id);
+    if (!provider) return res.status(403).json({ error: 'Provider account required.' });
+    if (provider.status !== 'APPROVED') return res.status(403).json({ error: 'Provider approval is required before subscribing.' });
+  }
   const result = await subscriptions.subscribe(req.user.id, audience, req.user.email);
   if (result.error) return res.status(400).json(result);
   res.json(result);
