@@ -121,3 +121,18 @@ label { font-size: 13px; font-weight: 600; color: var(--muted); display: block; 
 .media-upload input[type=file] { max-width: 220px; font-size: 12px; margin-bottom: 6px; }
 .media-upload .btn { margin-left: 6px; }
 @media (max-width: 640px) { .media-grid { grid-template-columns: 1fr 1fr; } .listing-media { height: 130px; } .media-upload { min-width: 190px; } .media-upload input[type=file] { max-width: 185px; } }
+
+/* Simple launch animation using the user's Akim Oda image. */
+.launch-splash { position: fixed; inset: 0; z-index: 9999; overflow: hidden; display: grid; place-items: center; background: #111; color: #fff; opacity: 1; transition: opacity .5s ease; }
+.launch-splash.is-leaving { opacity: 0; pointer-events: none; }
+.launch-splash-media, .launch-splash-shade { position: absolute; inset: 0; }
+.launch-splash-media { background: url('/splash-building.jpeg') center center / cover no-repeat; animation: launchImage 1.9s ease-out both; transform: scale(1.04); }
+.launch-splash-shade { background: linear-gradient(180deg, rgba(0,0,0,.18), rgba(0,0,0,.62)); }
+.launch-splash-content { position: relative; z-index: 1; text-align: center; padding: 24px; animation: launchText 1s .15s ease-out both; }
+.launch-splash-mark { width: 46px; height: 46px; margin: 0 auto 18px; border: 1px solid rgba(255,255,255,.7); border-radius: 14px; display: grid; place-items: center; background: rgba(0,0,0,.18); backdrop-filter: blur(6px); }
+.launch-splash-mark .dot { width: 12px; height: 12px; display: block; border-radius: 3px; background: #fff; box-shadow: 4px 4px 0 rgba(255,255,255,.42); }
+.launch-splash-name { font-size: clamp(20px, 5vw, 32px); font-weight: 800; letter-spacing: .08em; line-height: 1.15; text-shadow: 0 2px 18px rgba(0,0,0,.28); }
+.launch-splash-place { margin-top: 10px; color: rgba(255,255,255,.82); font-size: 13px; letter-spacing: .18em; text-transform: uppercase; }
+@keyframes launchImage { from { transform: scale(1.12); } to { transform: scale(1.04); } }
+@keyframes launchText { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .launch-splash-media, .launch-splash-content { animation: none; } .launch-splash { transition: none; } }
